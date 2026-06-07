@@ -45,6 +45,23 @@ RALLY_SEQUENCE_COOLDOWN = 10.0
 # 集結序列硬性超時：序列若未透過正常路徑結束，超過 N 秒強制中止
 RALLY_SEQUENCE_TIMEOUT = 8.0
 
+# 採集序列相關圖片
+GATHER_FIND_IMAGE = _icon_path('尋找.png')
+GATHER_SELECT_GATHER_IMAGE = _icon_path('選擇採集.png')
+GATHER_GOLD_MINE_IMAGE = _icon_path('灰色金礦.png')
+GATHER_MINUS_IMAGE = _icon_path('減號.png')
+GATHER_PLUS_IMAGE = _icon_path('加號.png')
+GATHER_SEARCH_IMAGE = _icon_path('搜索.png')
+GATHER_PICKAXE_IMAGE = _icon_path('十字鎬.png')
+GATHER_SQUAD3_IMAGE = _icon_path('閒置三隊.png')
+GATHER_SQUAD2_IMAGE = _icon_path('閒置二隊.png')
+GATHER_QUEUE_IMAGE = _icon_path('出征隊列.png')
+GATHER_ZERO_IN_USE_IMAGE = _icon_path('0隊使用中.png')
+
+# 採集序列配置
+GATHER_CHECK_INTERVAL = 60.0   # 1 分鐘檢查一次
+GATHER_STEP_TIMEOUT = 2.0      # 每一步驟的逾時時間
+
 # 治療序列圖片
 HEAL_START_IMAGE = _icon_path('startmyheal.png')
 HEAL_CONFIRM_IMAGE = _icon_path('confirmheal_PC.png')
@@ -215,6 +232,96 @@ def _run_rally_sequence(sct, notify_t, join_t, confirm_t, back_t, notify_loc, no
     print(f"=== 集結序列結束（{RALLY_SEQUENCE_COOLDOWN:.0f} 秒內不再進入序列）===")
 
 
+def _run_gather_sequence(sct, find_t, select_t, gold_t, minus_t, plus_t, search_t, pickaxe_t, squad3_t, squad2_t, confirm_t):
+    """採集序列：尋找 → 選擇採集 → 灰色金礦 → 數量位置 → 搜索 → 十字鎬 → 閒置隊伍 → 出征確定。"""
+
+    def _abort(message):
+        print(f"⚠️ {message}，按 ESC 結束採集序列")
+        pyautogui.press('esc')
+        return False
+
+    def _click_required(t):
+        if _detect_and_click_within(sct, t, timeout=GATHER_STEP_TIMEOUT):
+            return True
+        return _abort(f"2 秒內未偵測到 {t['name']}")
+
+    def _click_quantity_point():
+        start = time.time()
+        while time.time() - start < GATHER_STEP_TIMEOUT:
+            frame = _grab_frame(sct)
+            minus_val, _, _ = _match(frame, minus_t)
+            plus_val, _, _ = _match(frame, plus_t)
+            if minus_val >= THRESHOLD and plus_val >= THRESHOLD:
+                time.sleep(0.2)
+                frame2 = _grab_frame(sct)
+                minus_val2, minus_loc2, minus_variant2 = _match(frame2, minus_t)
+                plus_val2, plus_loc2, plus_variant2 = _match(frame2, plus_t)
+                if minus_val2 >= THRESHOLD and plus_val2 >= THRESHOLD:
+                    minus_x = MONITOR_REGION["left"] + minus_loc2[0] + minus_variant2['w'] // 2
+                    plus_x = MONITOR_REGION["left"] + plus_loc2[0] + plus_variant2['w'] // 2
+                    minus_y = MONITOR_REGION["top"] + minus_loc2[1] + minus_variant2['h'] // 2
+                    plus_y = MONITOR_REGION["top"] + plus_loc2[1] + plus_variant2['h'] // 2
+                    left_x = min(minus_x, plus_x)
+                    right_x = max(minus_x, plus_x)
+                    target_x = int(round(left_x + (right_x - left_x) * 0.55))
+                    target_y = int(round((minus_y + plus_y) / 2))
+                    pyautogui.click(target_x, target_y)
+                    pyautogui.moveTo(10, 10)
+                    time.sleep(0.5)
+                    return True
+                print(f"⚠️ 減號/加號二次確認失敗 (首次: {minus_val:.2f}/{plus_val:.2f}, 二次: {minus_val2:.2f}/{plus_val2:.2f})")
+            time.sleep(SEQUENCE_POLLING_INTERVAL)
+        return _abort(f"2 秒內未同時偵測到 {minus_t['name']} 與 {plus_t['name']}")
+
+    def _click_idle_squad():
+        start = time.time()
+        while time.time() - start < GATHER_STEP_TIMEOUT:
+            frame = _grab_frame(sct)
+            squad3_val, _, _ = _match(frame, squad3_t)
+            squad2_val, _, _ = _match(frame, squad2_t)
+            if squad3_val >= THRESHOLD or squad2_val >= THRESHOLD:
+                time.sleep(0.2)
+                frame2 = _grab_frame(sct)
+                squad3_val2, squad3_loc2, squad3_variant2 = _match(frame2, squad3_t)
+                squad2_val2, squad2_loc2, squad2_variant2 = _match(frame2, squad2_t)
+                if squad3_val2 >= THRESHOLD:
+                    _click_template(squad3_t, squad3_loc2, squad3_variant2)
+                    return True
+                if squad2_val2 >= THRESHOLD:
+                    _click_template(squad2_t, squad2_loc2, squad2_variant2)
+                    return True
+                print(f"⚠️ 閒置隊伍二次確認失敗 (首次: {squad3_val:.2f}/{squad2_val:.2f}, 二次: {squad3_val2:.2f}/{squad2_val2:.2f})")
+            time.sleep(SEQUENCE_POLLING_INTERVAL)
+        return _abort(f"2 秒內未偵測到 {squad3_t['name']} 或 {squad2_t['name']}")
+
+    print("=== 進入採集序列 ===")
+
+    if not _click_required(find_t):
+        return
+    if not _click_required(select_t):
+        return
+
+    if gold_t is None:
+        print("ℹ️ 灰色金礦圖片未載入，跳過可選步驟")
+    elif _detect_and_click_within(sct, gold_t, timeout=GATHER_STEP_TIMEOUT):
+        print(f"✅ 已點擊可選步驟 {gold_t['name']}")
+    else:
+        print(f"ℹ️ 2 秒內未偵測到 {gold_t['name']}，跳過可選步驟")
+
+    if not _click_quantity_point():
+        return
+    if not _click_required(search_t):
+        return
+    if not _click_required(pickaxe_t):
+        return
+    if not _click_idle_squad():
+        return
+    if not _click_required(confirm_t):
+        return
+
+    print("=== 採集序列結束 ===")
+
+
 def _run_heal_sequence(sct, start_t, confirm_t, lookforhelp_t, start_loc, start_variant):
     """治療序列：startmyheal → confirmheal → lookforhelp。
 
@@ -274,6 +381,31 @@ def solve_screen_detection():
     base_t = _load_template(BASE_IMAGE)
     base_ready = base_t is not None
 
+    # 載入採集序列圖片
+    gather_find = _load_template(GATHER_FIND_IMAGE)
+    gather_select = _load_template(GATHER_SELECT_GATHER_IMAGE)
+    gather_gold = _load_template(GATHER_GOLD_MINE_IMAGE)
+    gather_minus = _load_template(GATHER_MINUS_IMAGE)
+    gather_plus = _load_template(GATHER_PLUS_IMAGE)
+    gather_search = _load_template(GATHER_SEARCH_IMAGE)
+    gather_pickaxe = _load_template(GATHER_PICKAXE_IMAGE)
+    gather_s3 = _load_template(GATHER_SQUAD3_IMAGE)
+    gather_s2 = _load_template(GATHER_SQUAD2_IMAGE)
+    gather_queue = _load_template(GATHER_QUEUE_IMAGE)
+    gather_zero_in_use = _load_template(GATHER_ZERO_IN_USE_IMAGE)
+    gather_ready = base_ready and all(x is not None for x in (
+        gather_find,
+        gather_select,
+        gather_minus,
+        gather_plus,
+        gather_search,
+        gather_pickaxe,
+        gather_s3,
+        gather_s2,
+        gather_queue,
+        rally_confirm,
+    ))
+
     print(f"--- 獨立冷卻模式啟動 ---")
     print(f"每張圖片獨立冷卻: {INDIVIDUAL_COOLDOWN} 秒")
     print(f"模板縮放倍率: {', '.join(f'{scale * 100:.0f}%' for scale in TEMPLATE_SCALES)}")
@@ -285,14 +417,22 @@ def solve_screen_detection():
         print("--- 治療序列功能已啟用 ---")
     else:
         print("【警告】治療序列圖片不齊全，已停用該功能")
+    if gather_ready:
+        print("--- 採集序列功能已啟用 ---")
+        if gather_zero_in_use is None:
+            print("【警告】找不到 0隊使用中圖片，第二種採集進入條件已停用")
+    else:
+        print("【警告】採集序列必要圖片不齊全，已停用該功能")
     if base_ready:
         print(f"--- 基地監測功能已啟用（每 {BASE_CHECK_INTERVAL:.0f} 秒檢查，連續 {BASE_MISSING_LIMIT} 次未出現按 ESC）---")
     else:
         print("【警告】找不到基地圖片，已停用基地監測")
 
+
     # 基地監測狀態：上次檢查時間 + 連續未出現次數
     last_base_check = time.time()
     base_missing_count = 0
+    last_gather_check = time.time() - GATHER_CHECK_INTERVAL
 
     with mss.mss() as sct:
         while True:
@@ -346,6 +486,43 @@ def solve_screen_detection():
                         continue
                     else:
                         print(f"⚠️ {heal_start['name']} 二次確認失敗 (首次: {max_val:.2f}, 二次: {max_val2:.2f})")
+
+            # 1.7 採集序列檢查：每 1 分鐘偵測一次，任一條件成立就進入序列
+            if gather_ready and current_time - last_gather_check >= GATHER_CHECK_INTERVAL:
+                last_gather_check = current_time
+                val_base, _, _ = _match(frame, base_t)
+                val_queue, _, _ = _match(frame, gather_queue)
+                val_zero_in_use = -1.0
+                if gather_zero_in_use is not None:
+                    val_zero_in_use, _, _ = _match(frame, gather_zero_in_use)
+
+                gather_condition_1 = val_base >= THRESHOLD and val_queue < THRESHOLD
+                gather_condition_2 = (
+                    gather_zero_in_use is not None
+                    and val_base >= THRESHOLD
+                    and val_queue >= THRESHOLD
+                    and val_zero_in_use >= THRESHOLD
+                )
+
+                if gather_condition_1 or gather_condition_2:
+                    if gather_condition_1:
+                        print(f"✅ 採集條件成立：偵測到基地 ({val_base:.2f}) 且未偵測到出征隊列 ({val_queue:.2f})")
+                    else:
+                        print(f"✅ 採集條件成立：基地 ({val_base:.2f})、出征隊列 ({val_queue:.2f})、0隊使用中 ({val_zero_in_use:.2f}) 同時存在")
+                    _run_gather_sequence(
+                        sct,
+                        gather_find,
+                        gather_select,
+                        gather_gold,
+                        gather_minus,
+                        gather_plus,
+                        gather_search,
+                        gather_pickaxe,
+                        gather_s3,
+                        gather_s2,
+                        rally_confirm,
+                    )
+                    continue
 
             # 2. 檢查清單中的每一張圖
             for t in templates:
