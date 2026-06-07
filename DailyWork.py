@@ -22,6 +22,7 @@ def _icon_path(filename):
 
 TARGET_IMAGES = [_icon_path('takemyheal.png'), _icon_path('takemyheal8lv.png'), _icon_path('help.png')]
 THRESHOLD = 0.85 
+TEMPLATE_SCALES = (1.0, 0.5)
 
 MONITOR_REGION = {"top": 0, "left": 0, "width": 1920, "height": 1080}
 
@@ -46,7 +47,7 @@ RALLY_SEQUENCE_TIMEOUT = 8.0
 
 # 治療序列圖片
 HEAL_START_IMAGE = _icon_path('startmyheal.png')
-HEAL_CONFIRM_IMAGE = _icon_path('confirmheal.png')
+HEAL_CONFIRM_IMAGE = _icon_path('confirmheal_PC.png')
 HEAL_LOOKFORHELP_IMAGE = _icon_path('lookforhelp.png')
 
 # 治療序列冷卻與硬性超時
@@ -81,7 +82,20 @@ def _load_template(path):
         print(f"【警告】找不到圖片檔案: {path}")
         return None
     h, w = img.shape[:2]
-    return {'img': img, 'w': w, 'h': h, 'name': path, 'last_clicked': 0}
+    variants = []
+    seen_sizes = set()
+    for scale in TEMPLATE_SCALES:
+        scaled_w = max(1, int(round(w * scale)))
+        scaled_h = max(1, int(round(h * scale)))
+        if (scaled_w, scaled_h) in seen_sizes:
+            continue
+        seen_sizes.add((scaled_w, scaled_h))
+        if scale == 1.0:
+            scaled_img = img
+        else:
+            scaled_img = cv2.resize(img, (scaled_w, scaled_h), interpolation=cv2.INTER_AREA)
+        variants.append({'img': scaled_img, 'w': scaled_w, 'h': scaled_h, 'scale': scale})
+    return {'variants': variants, 'name': path, 'last_clicked': 0}
 
 
 def _grab_frame(sct):
@@ -90,10 +104,12 @@ def _grab_frame(sct):
     return cv2.cvtColor(frame, cv2.COLOR_BGRA2BGR)
 
 
-def _click_template(t, max_loc):
+def _click_template(t, max_loc, matched_variant):
+    if matched_variant is None:
+        return
     if CLICK_MODE == 'center':
-        target_x = MONITOR_REGION["left"] + max_loc[0] + t['w'] // 2
-        target_y = MONITOR_REGION["top"] + max_loc[1] + t['h'] // 2
+        target_x = MONITOR_REGION["left"] + max_loc[0] + matched_variant['w'] // 2
+        target_y = MONITOR_REGION["top"] + max_loc[1] + matched_variant['h'] // 2
     else:
         target_x = FIXED_CLICK_X
         target_y = FIXED_CLICK_Y
@@ -105,9 +121,20 @@ def _click_template(t, max_loc):
 
 
 def _match(frame, t):
-    result = cv2.matchTemplate(frame, t['img'], cv2.TM_CCOEFF_NORMED)
-    _, max_val, _, max_loc = cv2.minMaxLoc(result)
-    return max_val, max_loc
+    frame_h, frame_w = frame.shape[:2]
+    best_val = -1.0
+    best_loc = (0, 0)
+    best_variant = None
+    for variant in t['variants']:
+        if variant['w'] > frame_w or variant['h'] > frame_h:
+            continue
+        result = cv2.matchTemplate(frame, variant['img'], cv2.TM_CCOEFF_NORMED)
+        _, max_val, _, max_loc = cv2.minMaxLoc(result)
+        if max_val > best_val:
+            best_val = max_val
+            best_loc = max_loc
+            best_variant = variant
+    return best_val, best_loc, best_variant
 
 
 def _detect_and_click_within(sct, t, timeout):
@@ -115,14 +142,14 @@ def _detect_and_click_within(sct, t, timeout):
     start = time.time()
     while time.time() - start < timeout:
         frame = _grab_frame(sct)
-        max_val, _ = _match(frame, t)
+        max_val, _, _ = _match(frame, t)
         if max_val >= THRESHOLD:
             time.sleep(0.2)
             frame2 = _grab_frame(sct)
-            max_val2, max_loc2 = _match(frame2, t)
+            max_val2, max_loc2, matched_variant2 = _match(frame2, t)
             if max_val2 >= THRESHOLD:
                 print(f"✅ {t['name']} 二次確認成功 (匹配度: {max_val:.2f} -> {max_val2:.2f})")
-                _click_template(t, max_loc2)
+                _click_template(t, max_loc2, matched_variant2)
                 time.sleep(0.5)
                 return True
             else:
@@ -141,16 +168,16 @@ def _fallback_press_back(sct, back_t, total_seconds=2):
     start = time.time()
     while time.time() - start < total_seconds:
         frame = _grab_frame(sct)
-        max_val, max_loc = _match(frame, back_t)
+        max_val, max_loc, matched_variant = _match(frame, back_t)
         if max_val >= THRESHOLD:
             print(f"✅ {back_t['name']} 偵測到 (匹配度: {max_val:.2f})")
-            _click_template(back_t, max_loc)
+            _click_template(back_t, max_loc, matched_variant)
             clicked = True
         time.sleep(SEQUENCE_POLLING_INTERVAL)
     return clicked
 
 
-def _run_rally_sequence(sct, notify_t, join_t, confirm_t, back_t, notify_loc):
+def _run_rally_sequence(sct, notify_t, join_t, confirm_t, back_t, notify_loc, notify_variant):
     """集結提醒 → 加入集結+ → 出征確定 流程。
 
     - 加入集結+ 失敗：fallback 連續按返回 3 秒
@@ -164,7 +191,7 @@ def _run_rally_sequence(sct, notify_t, join_t, confirm_t, back_t, notify_loc):
 
     print("=== 進入集結序列 ===")
     # 步驟 1：點擊集結提醒
-    _click_template(notify_t, notify_loc)
+    _click_template(notify_t, notify_loc, notify_variant)
     print(f"✅ 已點擊 {notify_t['name']}")
 
     # 步驟 2：3 秒內偵測「加入集結+」
@@ -188,7 +215,7 @@ def _run_rally_sequence(sct, notify_t, join_t, confirm_t, back_t, notify_loc):
     print(f"=== 集結序列結束（{RALLY_SEQUENCE_COOLDOWN:.0f} 秒內不再進入序列）===")
 
 
-def _run_heal_sequence(sct, start_t, confirm_t, lookforhelp_t, start_loc):
+def _run_heal_sequence(sct, start_t, confirm_t, lookforhelp_t, start_loc, start_variant):
     """治療序列：startmyheal → confirmheal → lookforhelp。
 
     任一步驟失敗（偵測不到下一張圖）就直接結束序列。
@@ -201,7 +228,7 @@ def _run_heal_sequence(sct, start_t, confirm_t, lookforhelp_t, start_loc):
 
     print("=== 進入治療序列 ===")
     # 步驟 1：點擊 startmyheal
-    _click_template(start_t, start_loc)
+    _click_template(start_t, start_loc, start_variant)
     print(f"✅ 已點擊 {start_t['name']}")
 
     # 步驟 2：2 秒內偵測 confirmheal
@@ -249,6 +276,7 @@ def solve_screen_detection():
 
     print(f"--- 獨立冷卻模式啟動 ---")
     print(f"每張圖片獨立冷卻: {INDIVIDUAL_COOLDOWN} 秒")
+    print(f"模板縮放倍率: {', '.join(f'{scale * 100:.0f}%' for scale in TEMPLATE_SCALES)}")
     if rally_ready:
         print("--- 集結序列功能已啟用 ---")
     else:
@@ -279,7 +307,7 @@ def solve_screen_detection():
             #     連續 BASE_MISSING_LIMIT 次未出現就按 ESC 並把計數歸零重新開始
             if base_ready and current_time - last_base_check >= BASE_CHECK_INTERVAL:
                 last_base_check = current_time
-                base_val, _ = _match(frame, base_t)
+                base_val, _, _ = _match(frame, base_t)
                 if base_val >= THRESHOLD:
                     base_missing_count = 0
                     print(f"🏠 偵測到 {base_t['name']}（匹配度: {base_val:.2f}），基地計數歸零")
@@ -293,28 +321,28 @@ def solve_screen_detection():
 
             # 1.5 集結序列優先檢查：偵測到「集結提醒」就進入序列，期間不偵測其他動作
             if rally_ready and current_time - rally_notify['last_clicked'] >= RALLY_SEQUENCE_COOLDOWN:
-                max_val, _ = _match(frame, rally_notify)
+                max_val, _, _ = _match(frame, rally_notify)
                 if max_val >= THRESHOLD:
                     time.sleep(0.2)
                     frame2 = _grab_frame(sct)
-                    max_val2, max_loc2 = _match(frame2, rally_notify)
+                    max_val2, max_loc2, matched_variant2 = _match(frame2, rally_notify)
                     if max_val2 >= THRESHOLD:
                         print(f"✅ {rally_notify['name']} 二次確認成功 (匹配度: {max_val:.2f} -> {max_val2:.2f})")
-                        _run_rally_sequence(sct, rally_notify, rally_join, rally_confirm, rally_back, max_loc2)
+                        _run_rally_sequence(sct, rally_notify, rally_join, rally_confirm, rally_back, max_loc2, matched_variant2)
                         continue
                     else:
                         print(f"⚠️ {rally_notify['name']} 二次確認失敗 (首次: {max_val:.2f}, 二次: {max_val2:.2f})")
 
             # 1.6 治療序列優先檢查：偵測到 startmyheal 就進入序列，期間不偵測其他動作
             if heal_ready and current_time - heal_start['last_clicked'] >= HEAL_SEQUENCE_COOLDOWN:
-                max_val, _ = _match(frame, heal_start)
+                max_val, _, _ = _match(frame, heal_start)
                 if max_val >= THRESHOLD:
                     time.sleep(0.2)
                     frame2 = _grab_frame(sct)
-                    max_val2, max_loc2 = _match(frame2, heal_start)
+                    max_val2, max_loc2, matched_variant2 = _match(frame2, heal_start)
                     if max_val2 >= THRESHOLD:
                         print(f"✅ {heal_start['name']} 二次確認成功 (匹配度: {max_val:.2f} -> {max_val2:.2f})")
-                        _run_heal_sequence(sct, heal_start, heal_confirm, heal_lookforhelp, max_loc2)
+                        _run_heal_sequence(sct, heal_start, heal_confirm, heal_lookforhelp, max_loc2, matched_variant2)
                         continue
                     else:
                         print(f"⚠️ {heal_start['name']} 二次確認失敗 (首次: {max_val:.2f}, 二次: {max_val2:.2f})")
@@ -325,8 +353,7 @@ def solve_screen_detection():
                 if current_time - t['last_clicked'] < INDIVIDUAL_COOLDOWN:
                     continue
 
-                result = cv2.matchTemplate(frame, t['img'], cv2.TM_CCOEFF_NORMED)
-                _, max_val, _, max_loc = cv2.minMaxLoc(result)
+                max_val, _, _ = _match(frame, t)
 
                 if max_val >= THRESHOLD:
                     # 二次確認機制：短暫等待後再次檢測，避免誤判
@@ -337,27 +364,12 @@ def solve_screen_detection():
                     frame2 = np.array(screenshot2)
                     frame2 = cv2.cvtColor(frame2, cv2.COLOR_BGRA2BGR)
 
-                    result2 = cv2.matchTemplate(frame2, t['img'], cv2.TM_CCOEFF_NORMED)
-                    _, max_val2, _, max_loc2 = cv2.minMaxLoc(result2)
+                    max_val2, max_loc2, matched_variant2 = _match(frame2, t)
 
                     # 只有兩次都檢測到才點擊
                     if max_val2 >= THRESHOLD:
-                        if CLICK_MODE == 'center':
-                            target_x = MONITOR_REGION["left"] + max_loc2[0] + t['w'] // 2
-                            target_y = MONITOR_REGION["top"] + max_loc2[1] + t['h'] // 2
-                        else:
-                            target_x = FIXED_CLICK_X
-                            target_y = FIXED_CLICK_Y
-
-                        final_x = target_x + random.randint(-3, 3)
-                        final_y = target_y + random.randint(-3, 3)
-
                         print(f"✅ {t['name']} 二次確認成功 (匹配度: {max_val:.2f} -> {max_val2:.2f})")
-                        pyautogui.click(final_x, final_y)
-                        pyautogui.moveTo(10, 10)  # 移動滑鼠到左上角，避免遮擋偵測
-
-                        # 更新這張圖片的上次點擊時間
-                        t['last_clicked'] = time.time()
+                        _click_template(t, max_loc2, matched_variant2)
 
                         time.sleep(0.5)  # 點擊後短暫等待，避免連續點擊過快
                     else:
