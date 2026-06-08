@@ -20,7 +20,27 @@ def _icon_path(filename):
     return ICON_DIR / filename
 
 
-TARGET_IMAGES = [_icon_path('takemyheal.png'), _icon_path('takemyheal8lv.png'), _icon_path('help.png')]
+# 功能開關：要停用某項功能時，將 True 改成 False。
+ENABLE_TAKEMYHEAL_DETECTION = True
+ENABLE_TAKEMYHEAL8LV_DETECTION = True
+ENABLE_HELP_DETECTION = True
+ENABLE_RALLY_SEQUENCE = True
+ENABLE_HEAL_SEQUENCE = True
+ENABLE_GATHER_SEQUENCE = True
+ENABLE_BASE_MONITORING = True
+
+# 普通偵測圖片
+TAKEMYHEAL_IMAGE = _icon_path('takemyheal.png')
+TAKEMYHEAL8LV_IMAGE = _icon_path('takemyheal8lv.png')
+HELP_IMAGE = _icon_path('help.png')
+TARGET_IMAGES = []
+if ENABLE_TAKEMYHEAL_DETECTION:
+    TARGET_IMAGES.append(TAKEMYHEAL_IMAGE)
+if ENABLE_TAKEMYHEAL8LV_DETECTION:
+    TARGET_IMAGES.append(TAKEMYHEAL8LV_IMAGE)
+if ENABLE_HELP_DETECTION:
+    TARGET_IMAGES.append(HELP_IMAGE)
+
 THRESHOLD = 0.85 
 TEMPLATE_SCALES = (1.0, 0.5)
 
@@ -353,6 +373,16 @@ def _run_heal_sequence(sct, start_t, confirm_t, lookforhelp_t, start_loc, start_
 
 
 def solve_screen_detection():
+    if not (
+        TARGET_IMAGES
+        or ENABLE_RALLY_SEQUENCE
+        or ENABLE_HEAL_SEQUENCE
+        or ENABLE_GATHER_SEQUENCE
+        or ENABLE_BASE_MONITORING
+    ):
+        print("【錯誤】所有功能開關皆為 False，沒有可執行項目。")
+        return
+
     # 預先讀取圖片並初始化每個圖片的「上次點擊時間」為 0
     templates = []
     for path in TARGET_IMAGES:
@@ -360,40 +390,61 @@ def solve_screen_detection():
         if t is not None:
             templates.append(t)
 
-    if not templates:
-        print("【錯誤】沒有有效圖片。")
-        return
-
     # 載入集結序列圖片
-    rally_notify = _load_template(RALLY_NOTIFY_IMAGE)
-    rally_join = _load_template(RALLY_JOIN_IMAGE)
-    rally_confirm = _load_template(RALLY_CONFIRM_IMAGE)
-    rally_back = _load_template(RALLY_BACK_IMAGE)
-    rally_ready = all(x is not None for x in (rally_notify, rally_join, rally_confirm, rally_back))
+    rally_notify = None
+    rally_join = None
+    rally_confirm = None
+    rally_back = None
+    if ENABLE_RALLY_SEQUENCE or ENABLE_GATHER_SEQUENCE:
+        rally_confirm = _load_template(RALLY_CONFIRM_IMAGE)
+    if ENABLE_RALLY_SEQUENCE:
+        rally_notify = _load_template(RALLY_NOTIFY_IMAGE)
+        rally_join = _load_template(RALLY_JOIN_IMAGE)
+        rally_back = _load_template(RALLY_BACK_IMAGE)
+    rally_ready = ENABLE_RALLY_SEQUENCE and all(x is not None for x in (rally_notify, rally_join, rally_confirm, rally_back))
 
     # 載入治療序列圖片
-    heal_start = _load_template(HEAL_START_IMAGE)
-    heal_confirm = _load_template(HEAL_CONFIRM_IMAGE)
-    heal_lookforhelp = _load_template(HEAL_LOOKFORHELP_IMAGE)
-    heal_ready = all(x is not None for x in (heal_start, heal_confirm, heal_lookforhelp))
+    heal_start = None
+    heal_confirm = None
+    heal_lookforhelp = None
+    if ENABLE_HEAL_SEQUENCE:
+        heal_start = _load_template(HEAL_START_IMAGE)
+        heal_confirm = _load_template(HEAL_CONFIRM_IMAGE)
+        heal_lookforhelp = _load_template(HEAL_LOOKFORHELP_IMAGE)
+    heal_ready = ENABLE_HEAL_SEQUENCE and all(x is not None for x in (heal_start, heal_confirm, heal_lookforhelp))
 
     # 載入基地監測圖片
-    base_t = _load_template(BASE_IMAGE)
+    base_t = None
+    if ENABLE_BASE_MONITORING or ENABLE_GATHER_SEQUENCE:
+        base_t = _load_template(BASE_IMAGE)
     base_ready = base_t is not None
+    base_monitor_ready = ENABLE_BASE_MONITORING and base_ready
 
     # 載入採集序列圖片
-    gather_find = _load_template(GATHER_FIND_IMAGE)
-    gather_select = _load_template(GATHER_SELECT_GATHER_IMAGE)
-    gather_gold = _load_template(GATHER_GOLD_MINE_IMAGE)
-    gather_minus = _load_template(GATHER_MINUS_IMAGE)
-    gather_plus = _load_template(GATHER_PLUS_IMAGE)
-    gather_search = _load_template(GATHER_SEARCH_IMAGE)
-    gather_pickaxe = _load_template(GATHER_PICKAXE_IMAGE)
-    gather_s3 = _load_template(GATHER_SQUAD3_IMAGE)
-    gather_s2 = _load_template(GATHER_SQUAD2_IMAGE)
-    gather_queue = _load_template(GATHER_QUEUE_IMAGE)
-    gather_zero_in_use = _load_template(GATHER_ZERO_IN_USE_IMAGE)
-    gather_ready = base_ready and all(x is not None for x in (
+    gather_find = None
+    gather_select = None
+    gather_gold = None
+    gather_minus = None
+    gather_plus = None
+    gather_search = None
+    gather_pickaxe = None
+    gather_s3 = None
+    gather_s2 = None
+    gather_queue = None
+    gather_zero_in_use = None
+    if ENABLE_GATHER_SEQUENCE:
+        gather_find = _load_template(GATHER_FIND_IMAGE)
+        gather_select = _load_template(GATHER_SELECT_GATHER_IMAGE)
+        gather_gold = _load_template(GATHER_GOLD_MINE_IMAGE)
+        gather_minus = _load_template(GATHER_MINUS_IMAGE)
+        gather_plus = _load_template(GATHER_PLUS_IMAGE)
+        gather_search = _load_template(GATHER_SEARCH_IMAGE)
+        gather_pickaxe = _load_template(GATHER_PICKAXE_IMAGE)
+        gather_s3 = _load_template(GATHER_SQUAD3_IMAGE)
+        gather_s2 = _load_template(GATHER_SQUAD2_IMAGE)
+        gather_queue = _load_template(GATHER_QUEUE_IMAGE)
+        gather_zero_in_use = _load_template(GATHER_ZERO_IN_USE_IMAGE)
+    gather_ready = ENABLE_GATHER_SEQUENCE and base_ready and all(x is not None for x in (
         gather_find,
         gather_select,
         gather_minus,
@@ -409,24 +460,43 @@ def solve_screen_detection():
     print(f"--- 獨立冷卻模式啟動 ---")
     print(f"每張圖片獨立冷卻: {INDIVIDUAL_COOLDOWN} 秒")
     print(f"模板縮放倍率: {', '.join(f'{scale * 100:.0f}%' for scale in TEMPLATE_SCALES)}")
-    if rally_ready:
+    if TARGET_IMAGES:
+        if templates:
+            print(f"--- 普通偵測功能已啟用（{len(templates)}/{len(TARGET_IMAGES)} 張圖片載入）---")
+        else:
+            print("【警告】普通偵測圖片皆無法載入，已停用普通偵測")
+    else:
+        print("--- 普通偵測功能已全部停用 ---")
+    if not ENABLE_RALLY_SEQUENCE:
+        print("--- 集結序列功能已停用 ---")
+    elif rally_ready:
         print("--- 集結序列功能已啟用 ---")
     else:
         print("【警告】集結序列圖片不齊全，已停用該功能")
-    if heal_ready:
+    if not ENABLE_HEAL_SEQUENCE:
+        print("--- 治療序列功能已停用 ---")
+    elif heal_ready:
         print("--- 治療序列功能已啟用 ---")
     else:
         print("【警告】治療序列圖片不齊全，已停用該功能")
-    if gather_ready:
+    if not ENABLE_GATHER_SEQUENCE:
+        print("--- 採集序列功能已停用 ---")
+    elif gather_ready:
         print("--- 採集序列功能已啟用 ---")
         if gather_zero_in_use is None:
             print("【警告】找不到 0隊使用中圖片，第二種採集進入條件已停用")
     else:
         print("【警告】採集序列必要圖片不齊全，已停用該功能")
-    if base_ready:
+    if not ENABLE_BASE_MONITORING:
+        print("--- 基地監測功能已停用 ---")
+    elif base_monitor_ready:
         print(f"--- 基地監測功能已啟用（每 {BASE_CHECK_INTERVAL:.0f} 秒檢查，連續 {BASE_MISSING_LIMIT} 次未出現按 ESC）---")
     else:
         print("【警告】找不到基地圖片，已停用基地監測")
+
+    if not templates and not any((rally_ready, heal_ready, gather_ready, base_monitor_ready)):
+        print("【錯誤】沒有任何已啟用且可載入的功能。")
+        return
 
 
     # 基地監測狀態：上次檢查時間 + 連續未出現次數
@@ -445,7 +515,7 @@ def solve_screen_detection():
 
             # 1.4 基地監測：每隔 BASE_CHECK_INTERVAL 秒檢查一次「基地」是否出現，
             #     連續 BASE_MISSING_LIMIT 次未出現就按 ESC 並把計數歸零重新開始
-            if base_ready and current_time - last_base_check >= BASE_CHECK_INTERVAL:
+            if base_monitor_ready and current_time - last_base_check >= BASE_CHECK_INTERVAL:
                 last_base_check = current_time
                 base_val, _, _ = _match(frame, base_t)
                 if base_val >= THRESHOLD:

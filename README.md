@@ -42,6 +42,18 @@ start_dailywork.bat
 
 程式會擷取 `MONITOR_REGION` 設定的畫面範圍，使用 `icon/` 內的圖片模板進行比對。預設比對門檻為 `0.85`，模板會同時使用 100% 與 50% 兩種縮放倍率。
 
+## 功能開關
+
+功能開關集中在 `DailyWork.py` 頂端。Python 布林值請使用 `True` / `False`。
+
+- `ENABLE_TAKEMYHEAL_DETECTION`：啟用 `takemyheal.png` 普通偵測
+- `ENABLE_TAKEMYHEAL8LV_DETECTION`：啟用 `takemyheal8lv.png` 普通偵測
+- `ENABLE_HELP_DETECTION`：啟用 `help.png` 普通偵測
+- `ENABLE_RALLY_SEQUENCE`：啟用集結序列
+- `ENABLE_HEAL_SEQUENCE`：啟用治療序列
+- `ENABLE_GATHER_SEQUENCE`：啟用採集序列
+- `ENABLE_BASE_MONITORING`：啟用基地監測
+
 ### 一般圖片點擊
 
 一般偵測清單：
