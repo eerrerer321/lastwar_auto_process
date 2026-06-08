@@ -62,6 +62,9 @@ RALLY_BACK_IMAGE = _icon_path('返回.png')
 # 集結序列冷卻：序列結束後 N 秒內不再進入序列（期間其他偵測照常運作）
 RALLY_SEQUENCE_COOLDOWN = 10.0
 
+# 集結序列進入前延遲：初次偵測到集結提醒後，等待 N 秒再確認仍存在才進入序列
+RALLY_ENTRY_DELAY = 15.0
+
 # 集結序列硬性超時：序列若未透過正常路徑結束，超過 N 秒強制中止
 RALLY_SEQUENCE_TIMEOUT = 8.0
 
@@ -529,19 +532,21 @@ def solve_screen_detection():
                         pyautogui.press('esc')
                         base_missing_count = 0
 
-            # 1.5 集結序列優先檢查：偵測到「集結提醒」就進入序列，期間不偵測其他動作
+            # 1.5 集結序列優先檢查：偵測到「集結提醒」後延遲確認，仍存在才進入序列
             if rally_ready and current_time - rally_notify['last_clicked'] >= RALLY_SEQUENCE_COOLDOWN:
                 max_val, _, _ = _match(frame, rally_notify)
                 if max_val >= THRESHOLD:
-                    time.sleep(0.2)
+                    print(f"✅ 偵測到 {rally_notify['name']} (匹配度: {max_val:.2f})，等待 {RALLY_ENTRY_DELAY:.0f} 秒後再次確認")
+                    time.sleep(RALLY_ENTRY_DELAY)
                     frame2 = _grab_frame(sct)
                     max_val2, max_loc2, matched_variant2 = _match(frame2, rally_notify)
                     if max_val2 >= THRESHOLD:
-                        print(f"✅ {rally_notify['name']} 二次確認成功 (匹配度: {max_val:.2f} -> {max_val2:.2f})")
+                        print(f"✅ {rally_notify['name']} 延遲確認成功 (匹配度: {max_val:.2f} -> {max_val2:.2f})")
                         _run_rally_sequence(sct, rally_notify, rally_join, rally_confirm, rally_back, max_loc2, matched_variant2)
                         continue
                     else:
-                        print(f"⚠️ {rally_notify['name']} 二次確認失敗 (首次: {max_val:.2f}, 二次: {max_val2:.2f})")
+                        print(f"⚠️ {rally_notify['name']} 延遲確認失敗 (首次: {max_val:.2f}, 延遲後: {max_val2:.2f})")
+                        continue
 
             # 1.6 治療序列優先檢查：偵測到 startmyheal 就進入序列，期間不偵測其他動作
             if heal_ready and current_time - heal_start['last_clicked'] >= HEAL_SEQUENCE_COOLDOWN:
