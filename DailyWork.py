@@ -4,15 +4,40 @@ import mss
 import pyautogui
 import time
 import random
+import sys
 from pathlib import Path
 
 # 關閉 PyAutoGUI 角落緊急停止機制（避免滑鼠路徑經過 (0,0) 時被誤觸停止）
 # 副作用：失去「滑鼠甩角落停腳本」這個熱鍵，要中止請用 Ctrl+C
 pyautogui.FAILSAFE = False
+# 降低 PyAutoGUI 每次 click / move / press 後的內建停頓，避免序列動作疊出遲鈍感。
+pyautogui.PAUSE = 0.02
+
+# 讓主控台能正確輸出 log 中的 emoji（✅⚠️ℹ️）與中文。
+# 打包成 exe 後主控台預設常為 cp950 等非 UTF-8 編碼，直接 print emoji 會丟
+# UnicodeEncodeError 導致整個程式崩潰閃退；這裡先切到 UTF-8，並對無法編碼的
+# 字元改為替換而非報錯，確保在任何使用者的環境都不會因為輸出而中斷。
+if sys.platform == 'win32':
+    try:
+        import ctypes
+        ctypes.windll.kernel32.SetConsoleOutputCP(65001)
+    except Exception:
+        pass
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding='utf-8', errors='replace')
+    except (AttributeError, ValueError):
+        pass
 
 # ================= 配置設定 =================
-# 圖片路徑以 DailyWork.py 所在資料夾為基準，方便整包資料夾搬移。
-BASE_DIR = Path(__file__).resolve().parent
+# 圖片路徑解析：
+# - 一般以 .py 執行時，以本檔所在資料夾為基準（icon/ 與本檔同層）。
+# - 打包成單一 exe（PyInstaller frozen）後，icon 以資料檔內嵌在 exe 內，
+#   執行時由 PyInstaller 解壓到 sys._MEIPASS 暫存目錄，故從該處讀取。
+if getattr(sys, 'frozen', False):
+    BASE_DIR = Path(getattr(sys, '_MEIPASS', Path(sys.executable).resolve().parent))
+else:
+    BASE_DIR = Path(__file__).resolve().parent
 ICON_DIR = BASE_DIR / 'icon'
 
 
@@ -24,15 +49,18 @@ def _icon_path(filename):
 ENABLE_TAKEMYHEAL_DETECTION = True
 ENABLE_TAKEMYHEAL8LV_DETECTION = True
 ENABLE_HELP_DETECTION = True
-ENABLE_RALLY_SEQUENCE = True
+ENABLE_EXIT_GAME_DETECTION = True
+ENABLE_RALLY_SEQUENCE = False
 ENABLE_HEAL_SEQUENCE = True
-ENABLE_GATHER_SEQUENCE = True
+ENABLE_GATHER_SEQUENCE = False
+ENABLE_HUNT_ZOMBIE_SEQUENCE = False
 ENABLE_BASE_MONITORING = True
 
 # 普通偵測圖片
 TAKEMYHEAL_IMAGE = _icon_path('takemyheal.png')
 TAKEMYHEAL8LV_IMAGE = _icon_path('takemyheal8lv.png')
 HELP_IMAGE = _icon_path('help.png')
+EXIT_GAME_IMAGE = _icon_path('退出遊戲.png')
 TARGET_IMAGES = []
 if ENABLE_TAKEMYHEAL_DETECTION:
     TARGET_IMAGES.append(TAKEMYHEAL_IMAGE)
@@ -40,9 +68,11 @@ if ENABLE_TAKEMYHEAL8LV_DETECTION:
     TARGET_IMAGES.append(TAKEMYHEAL8LV_IMAGE)
 if ENABLE_HELP_DETECTION:
     TARGET_IMAGES.append(HELP_IMAGE)
+if ENABLE_EXIT_GAME_DETECTION:
+    TARGET_IMAGES.append(EXIT_GAME_IMAGE)
 
-THRESHOLD = 0.85 
-TEMPLATE_SCALES = (1.0, 0.5)
+THRESHOLD = 0.80
+TEMPLATE_SCALES = tuple(scale / 100 for scale in range(80, 121, 5))
 
 MONITOR_REGION = {"top": 0, "left": 0, "width": 1920, "height": 1080}
 
@@ -51,7 +81,7 @@ FIXED_CLICK_X = 1000
 FIXED_CLICK_Y = 1000
 
 # 獨立冷卻時間設定（秒）
-INDIVIDUAL_COOLDOWN = 3.0
+INDIVIDUAL_COOLDOWN = 1.0
 
 # 集結序列圖片
 RALLY_NOTIFY_IMAGE = _icon_path('集結提醒.png')
@@ -63,7 +93,7 @@ RALLY_BACK_IMAGE = _icon_path('返回.png')
 RALLY_SEQUENCE_COOLDOWN = 10.0
 
 # 集結序列進入前延遲：初次偵測到集結提醒後，等待 N 秒再確認仍存在才進入序列
-RALLY_ENTRY_DELAY = 15.0
+RALLY_ENTRY_DELAY = 5.0
 
 # 集結序列硬性超時：序列若未透過正常路徑結束，超過 N 秒強制中止
 RALLY_SEQUENCE_TIMEOUT = 8.0
@@ -79,11 +109,30 @@ GATHER_PICKAXE_IMAGE = _icon_path('十字鎬.png')
 GATHER_SQUAD3_IMAGE = _icon_path('閒置三隊.png')
 GATHER_SQUAD2_IMAGE = _icon_path('閒置二隊.png')
 GATHER_QUEUE_IMAGE = _icon_path('出征隊列.png')
-GATHER_ZERO_IN_USE_IMAGE = _icon_path('0隊使用中.png')
 
 # 採集序列配置
 GATHER_CHECK_INTERVAL = 60.0   # 1 分鐘檢查一次
 GATHER_STEP_TIMEOUT = 2.0      # 每一步驟的逾時時間
+GATHER_SLOW_STEP_TIMEOUT = 2.0 # 搜索後、出征頁等較慢換頁步驟的逾時時間
+GATHER_FAST_STEP_DELAY = 0.30  # 採集序列一般點擊後的換頁緩衝
+GATHER_SLOW_STEP_DELAY = 0.80  # 採集序列較慢換頁按鈕點擊後的緩衝
+GATHER_QUANTITY_CLICK_RATIO = 0.60
+
+# 狩獵金幣小殭屍序列相關圖片
+HUNT_STAMINA_IMAGE = _icon_path('體力108.png')
+HUNT_WORLD_IMAGE = _icon_path('世界.png')
+HUNT_ZOOMED_ZOMBIE_IMAGE = _icon_path('縮小15段後金幣殭屍.png')
+HUNT_WORLD_BASE_IMAGE = _icon_path('世界視角基地.png')
+HUNT_SPECIAL_EVENT_IMAGE = _icon_path('特殊事件.png')
+HUNT_DAILY_TASK_IMAGE = _icon_path('每日任務.png')
+HUNT_ATTACK_IMAGE = _icon_path('攻擊按鈕.png')
+
+# 狩獵金幣小殭屍序列配置
+HUNT_CHECK_INTERVAL = 60.0
+HUNT_STEP_TIMEOUT = 2.0
+HUNT_EVENT_MIDPOINT_TIMEOUT = 10.0
+HUNT_SCROLL_STEPS = 15
+HUNT_SCROLL_INTERVAL = 0.2
 
 # 治療序列圖片
 HEAL_START_IMAGE = _icon_path('startmyheal.png')
@@ -94,8 +143,9 @@ HEAL_LOOKFORHELP_IMAGE = _icon_path('lookforhelp.png')
 HEAL_SEQUENCE_COOLDOWN = 5.0
 HEAL_SEQUENCE_TIMEOUT = 8.0
 
-# 序列中偵測頻率 (秒)：每秒 4 次 = 0.25 秒
-SEQUENCE_POLLING_INTERVAL = 0.25
+# 序列中偵測頻率與點擊後緩衝。
+SEQUENCE_POLLING_INTERVAL = 0.10
+SEQUENCE_AFTER_CLICK_DELAY = 0.10
 
 # 基地監測：每隔 BASE_CHECK_INTERVAL 秒檢查畫面是否出現「基地」，
 # 連續 BASE_MISSING_LIMIT 次未出現就按一下 ESC 並把計數歸零重新開始
@@ -177,23 +227,17 @@ def _match(frame, t):
     return best_val, best_loc, best_variant
 
 
-def _detect_and_click_within(sct, t, timeout):
-    """在 timeout 秒內持續偵測 t 並二次確認後點擊；回傳是否點擊成功。"""
+def _detect_and_click_within(sct, t, timeout, after_click_delay=SEQUENCE_AFTER_CLICK_DELAY):
+    """在 timeout 秒內持續偵測 t，偵測到就立即點擊；回傳是否點擊成功。"""
     start = time.time()
     while time.time() - start < timeout:
         frame = _grab_frame(sct)
-        max_val, _, _ = _match(frame, t)
+        max_val, max_loc, matched_variant = _match(frame, t)
         if max_val >= THRESHOLD:
-            time.sleep(0.2)
-            frame2 = _grab_frame(sct)
-            max_val2, max_loc2, matched_variant2 = _match(frame2, t)
-            if max_val2 >= THRESHOLD:
-                print(f"✅ {t['name']} 二次確認成功 (匹配度: {max_val:.2f} -> {max_val2:.2f})")
-                _click_template(t, max_loc2, matched_variant2)
-                time.sleep(0.5)
-                return True
-            else:
-                print(f"⚠️ {t['name']} 二次確認失敗 (首次: {max_val:.2f}, 二次: {max_val2:.2f})")
+            print(f"✅ {t['name']} 偵測到 (匹配度: {max_val:.2f})")
+            _click_template(t, max_loc, matched_variant)
+            time.sleep(after_click_delay)
+            return True
         time.sleep(SEQUENCE_POLLING_INTERVAL)
     return False
 
@@ -258,64 +302,60 @@ def _run_rally_sequence(sct, notify_t, join_t, confirm_t, back_t, notify_loc, no
 def _run_gather_sequence(sct, find_t, select_t, gold_t, minus_t, plus_t, search_t, pickaxe_t, squad3_t, squad2_t, confirm_t):
     """採集序列：尋找 → 選擇採集 → 灰色金礦 → 數量位置 → 搜索 → 十字鎬 → 閒置隊伍 → 出征確定。"""
 
+    def _seconds_label(seconds):
+        return f"{seconds:g} 秒"
+
     def _abort(message):
         print(f"⚠️ {message}，按 ESC 結束採集序列")
         pyautogui.press('esc')
         return False
 
-    def _click_required(t):
-        if _detect_and_click_within(sct, t, timeout=GATHER_STEP_TIMEOUT):
+    def _click_required(t, timeout=GATHER_STEP_TIMEOUT, after_click_delay=GATHER_FAST_STEP_DELAY):
+        if _detect_and_click_within(sct, t, timeout=timeout, after_click_delay=after_click_delay):
             return True
-        return _abort(f"2 秒內未偵測到 {t['name']}")
+        return _abort(f"{_seconds_label(timeout)}內未偵測到 {t['name']}")
 
     def _click_quantity_point():
         start = time.time()
         while time.time() - start < GATHER_STEP_TIMEOUT:
             frame = _grab_frame(sct)
-            minus_val, _, _ = _match(frame, minus_t)
-            plus_val, _, _ = _match(frame, plus_t)
+            minus_val, minus_loc, minus_variant = _match(frame, minus_t)
+            plus_val, plus_loc, plus_variant = _match(frame, plus_t)
             if minus_val >= THRESHOLD and plus_val >= THRESHOLD:
-                time.sleep(0.2)
-                frame2 = _grab_frame(sct)
-                minus_val2, minus_loc2, minus_variant2 = _match(frame2, minus_t)
-                plus_val2, plus_loc2, plus_variant2 = _match(frame2, plus_t)
-                if minus_val2 >= THRESHOLD and plus_val2 >= THRESHOLD:
-                    minus_x = MONITOR_REGION["left"] + minus_loc2[0] + minus_variant2['w'] // 2
-                    plus_x = MONITOR_REGION["left"] + plus_loc2[0] + plus_variant2['w'] // 2
-                    minus_y = MONITOR_REGION["top"] + minus_loc2[1] + minus_variant2['h'] // 2
-                    plus_y = MONITOR_REGION["top"] + plus_loc2[1] + plus_variant2['h'] // 2
-                    left_x = min(minus_x, plus_x)
-                    right_x = max(minus_x, plus_x)
-                    target_x = int(round(left_x + (right_x - left_x) * 0.55))
-                    target_y = int(round((minus_y + plus_y) / 2))
-                    pyautogui.click(target_x, target_y)
-                    pyautogui.moveTo(10, 10)
-                    time.sleep(0.5)
-                    return True
-                print(f"⚠️ 減號/加號二次確認失敗 (首次: {minus_val:.2f}/{plus_val:.2f}, 二次: {minus_val2:.2f}/{plus_val2:.2f})")
+                minus_x = MONITOR_REGION["left"] + minus_loc[0] + minus_variant['w'] // 2
+                plus_x = MONITOR_REGION["left"] + plus_loc[0] + plus_variant['w'] // 2
+                minus_y = MONITOR_REGION["top"] + minus_loc[1] + minus_variant['h'] // 2
+                plus_y = MONITOR_REGION["top"] + plus_loc[1] + plus_variant['h'] // 2
+                left_x = min(minus_x, plus_x)
+                right_x = max(minus_x, plus_x)
+                target_x = int(round(left_x + (right_x - left_x) * GATHER_QUANTITY_CLICK_RATIO))
+                target_y = int(round((minus_y + plus_y) / 2))
+                print(f"✅ 減號/加號偵測到 (匹配度: {minus_val:.2f}/{plus_val:.2f})")
+                pyautogui.click(target_x, target_y)
+                pyautogui.moveTo(10, 10)
+                time.sleep(GATHER_FAST_STEP_DELAY)
+                return True
             time.sleep(SEQUENCE_POLLING_INTERVAL)
-        return _abort(f"2 秒內未同時偵測到 {minus_t['name']} 與 {plus_t['name']}")
+        return _abort(f"{_seconds_label(GATHER_STEP_TIMEOUT)}內未同時偵測到 {minus_t['name']} 與 {plus_t['name']}")
 
-    def _click_idle_squad():
+    def _click_idle_squad(timeout=GATHER_SLOW_STEP_TIMEOUT):
         start = time.time()
-        while time.time() - start < GATHER_STEP_TIMEOUT:
+        while time.time() - start < timeout:
             frame = _grab_frame(sct)
-            squad3_val, _, _ = _match(frame, squad3_t)
-            squad2_val, _, _ = _match(frame, squad2_t)
-            if squad3_val >= THRESHOLD or squad2_val >= THRESHOLD:
-                time.sleep(0.2)
-                frame2 = _grab_frame(sct)
-                squad3_val2, squad3_loc2, squad3_variant2 = _match(frame2, squad3_t)
-                squad2_val2, squad2_loc2, squad2_variant2 = _match(frame2, squad2_t)
-                if squad3_val2 >= THRESHOLD:
-                    _click_template(squad3_t, squad3_loc2, squad3_variant2)
-                    return True
-                if squad2_val2 >= THRESHOLD:
-                    _click_template(squad2_t, squad2_loc2, squad2_variant2)
-                    return True
-                print(f"⚠️ 閒置隊伍二次確認失敗 (首次: {squad3_val:.2f}/{squad2_val:.2f}, 二次: {squad3_val2:.2f}/{squad2_val2:.2f})")
+            squad3_val, squad3_loc, squad3_variant = _match(frame, squad3_t)
+            squad2_val, squad2_loc, squad2_variant = _match(frame, squad2_t)
+            if squad3_val >= THRESHOLD:
+                print(f"✅ {squad3_t['name']} 偵測到 (匹配度: {squad3_val:.2f})")
+                _click_template(squad3_t, squad3_loc, squad3_variant)
+                time.sleep(GATHER_FAST_STEP_DELAY)
+                return True
+            if squad2_val >= THRESHOLD:
+                print(f"✅ {squad2_t['name']} 偵測到 (匹配度: {squad2_val:.2f})")
+                _click_template(squad2_t, squad2_loc, squad2_variant)
+                time.sleep(GATHER_FAST_STEP_DELAY)
+                return True
             time.sleep(SEQUENCE_POLLING_INTERVAL)
-        return _abort(f"2 秒內未偵測到 {squad3_t['name']} 或 {squad2_t['name']}")
+        return _abort(f"{_seconds_label(timeout)}內未偵測到 {squad3_t['name']} 或 {squad2_t['name']}")
 
     print("=== 進入採集序列 ===")
 
@@ -326,23 +366,112 @@ def _run_gather_sequence(sct, find_t, select_t, gold_t, minus_t, plus_t, search_
 
     if gold_t is None:
         print("ℹ️ 灰色金礦圖片未載入，跳過可選步驟")
-    elif _detect_and_click_within(sct, gold_t, timeout=GATHER_STEP_TIMEOUT):
+    elif _detect_and_click_within(sct, gold_t, timeout=GATHER_STEP_TIMEOUT, after_click_delay=GATHER_FAST_STEP_DELAY):
         print(f"✅ 已點擊可選步驟 {gold_t['name']}")
     else:
         print(f"ℹ️ 2 秒內未偵測到 {gold_t['name']}，跳過可選步驟")
 
     if not _click_quantity_point():
         return
-    if not _click_required(search_t):
+    if not _click_required(search_t, after_click_delay=GATHER_SLOW_STEP_DELAY):
         return
-    if not _click_required(pickaxe_t):
+    if not _click_required(pickaxe_t, timeout=GATHER_SLOW_STEP_TIMEOUT, after_click_delay=GATHER_FAST_STEP_DELAY):
         return
     if not _click_idle_squad():
         return
-    if not _click_required(confirm_t):
+    if not _click_required(confirm_t, timeout=GATHER_SLOW_STEP_TIMEOUT):
         return
 
     print("=== 採集序列結束 ===")
+
+
+def _run_hunt_zombie_sequence(sct, base_t, world_t, zoomed_zombie_t, world_base_t, special_event_t, daily_task_t, idle_squad_ts, attack_t, confirm_t):
+    """狩獵金幣小殭屍序列：基地 → 世界 → 縮小 → 金幣殭屍 → 攻擊 → 出征確定。"""
+
+    def _abort(message):
+        print(f"⚠️ {message}，按 ESC 結束狩獵金幣小殭屍序列")
+        pyautogui.press('esc')
+        return False
+
+    def _click_required(t):
+        if _detect_and_click_within(sct, t, timeout=HUNT_STEP_TIMEOUT):
+            return True
+        return _abort(f"2 秒內未偵測到 {t['name']}")
+
+    def _click_event_midpoint_required():
+        start = time.time()
+        while time.time() - start < HUNT_EVENT_MIDPOINT_TIMEOUT:
+            frame = _grab_frame(sct)
+            special_val, special_loc, special_variant = _match(frame, special_event_t)
+            daily_val, daily_loc, daily_variant = _match(frame, daily_task_t)
+            if special_val >= THRESHOLD and daily_val >= THRESHOLD:
+                special_x = MONITOR_REGION["left"] + special_loc[0] + special_variant['w'] // 2
+                special_y = MONITOR_REGION["top"] + special_loc[1] + special_variant['h'] // 2
+                daily_x = MONITOR_REGION["left"] + daily_loc[0] + daily_variant['w'] // 2
+                daily_y = MONITOR_REGION["top"] + daily_loc[1] + daily_variant['h'] // 2
+                target_x = int(round((special_x + daily_x) / 2))
+                target_y = int(round((special_y + daily_y) / 2))
+                print(f"✅ 特殊事件/每日任務偵測到 (匹配度: {special_val:.2f}/{daily_val:.2f})，點擊中心連線 50% 位置")
+                pyautogui.click(target_x, target_y)
+                pyautogui.moveTo(10, 10)
+                time.sleep(SEQUENCE_AFTER_CLICK_DELAY)
+                return True
+            time.sleep(SEQUENCE_POLLING_INTERVAL)
+        return _abort(f"{HUNT_EVENT_MIDPOINT_TIMEOUT:.0f} 秒內未同時偵測到 {special_event_t['name']} 與 {daily_task_t['name']}")
+
+    def _click_optional_idle_squad():
+        if not idle_squad_ts:
+            print("ℹ️ 閒置隊伍圖片未載入，跳過狩獵出征前隊伍選擇")
+            return
+
+        start = time.time()
+        while time.time() - start < HUNT_STEP_TIMEOUT:
+            frame = _grab_frame(sct)
+            for idle_t in idle_squad_ts:
+                max_val, max_loc, matched_variant = _match(frame, idle_t)
+                if max_val >= THRESHOLD:
+                    print(f"✅ {idle_t['name']} 偵測到 (匹配度: {max_val:.2f})")
+                    _click_template(idle_t, max_loc, matched_variant)
+                    time.sleep(SEQUENCE_AFTER_CLICK_DELAY)
+                    return
+            time.sleep(SEQUENCE_POLLING_INTERVAL)
+
+        print("ℹ️ 2 秒內未偵測到閒置三隊或閒置二隊，跳過狩獵出征前隊伍選擇")
+
+    def _scroll_down_from_center():
+        target_x = MONITOR_REGION["left"] + MONITOR_REGION["width"] // 2
+        target_y = MONITOR_REGION["top"] + MONITOR_REGION["height"] // 2
+        pyautogui.moveTo(target_x, target_y)
+        for _ in range(HUNT_SCROLL_STEPS):
+            pyautogui.scroll(-1)
+            time.sleep(HUNT_SCROLL_INTERVAL)
+
+    print("=== 進入狩獵金幣小殭屍序列 ===")
+
+    if not _click_required(base_t):
+        return
+    if not _click_required(world_t):
+        return
+
+    _scroll_down_from_center()
+
+    if not _detect_and_click_within(sct, zoomed_zombie_t, timeout=HUNT_STEP_TIMEOUT):
+        print(f"ℹ️ 2 秒內未偵測到 {zoomed_zombie_t['name']}，嘗試返回世界視角基地並結束序列")
+        if not _detect_and_click_within(sct, world_base_t, timeout=HUNT_STEP_TIMEOUT):
+            _abort(f"2 秒內未偵測到 {world_base_t['name']}")
+            return
+        print("=== 狩獵金幣小殭屍序列結束 ===")
+        return
+
+    if not _click_event_midpoint_required():
+        return
+    if not _click_required(attack_t):
+        return
+    _click_optional_idle_squad()
+    if not _click_required(confirm_t):
+        return
+
+    print("=== 狩獵金幣小殭屍序列結束 ===")
 
 
 def _run_heal_sequence(sct, start_t, confirm_t, lookforhelp_t, start_loc, start_variant):
@@ -381,6 +510,7 @@ def solve_screen_detection():
         or ENABLE_RALLY_SEQUENCE
         or ENABLE_HEAL_SEQUENCE
         or ENABLE_GATHER_SEQUENCE
+        or ENABLE_HUNT_ZOMBIE_SEQUENCE
         or ENABLE_BASE_MONITORING
     ):
         print("【錯誤】所有功能開關皆為 False，沒有可執行項目。")
@@ -398,7 +528,7 @@ def solve_screen_detection():
     rally_join = None
     rally_confirm = None
     rally_back = None
-    if ENABLE_RALLY_SEQUENCE or ENABLE_GATHER_SEQUENCE:
+    if ENABLE_RALLY_SEQUENCE or ENABLE_GATHER_SEQUENCE or ENABLE_HUNT_ZOMBIE_SEQUENCE:
         rally_confirm = _load_template(RALLY_CONFIRM_IMAGE)
     if ENABLE_RALLY_SEQUENCE:
         rally_notify = _load_template(RALLY_NOTIFY_IMAGE)
@@ -418,7 +548,7 @@ def solve_screen_detection():
 
     # 載入基地監測圖片
     base_t = None
-    if ENABLE_BASE_MONITORING or ENABLE_GATHER_SEQUENCE:
+    if ENABLE_BASE_MONITORING or ENABLE_GATHER_SEQUENCE or ENABLE_HUNT_ZOMBIE_SEQUENCE:
         base_t = _load_template(BASE_IMAGE)
     base_ready = base_t is not None
     base_monitor_ready = ENABLE_BASE_MONITORING and base_ready
@@ -434,7 +564,6 @@ def solve_screen_detection():
     gather_s3 = None
     gather_s2 = None
     gather_queue = None
-    gather_zero_in_use = None
     if ENABLE_GATHER_SEQUENCE:
         gather_find = _load_template(GATHER_FIND_IMAGE)
         gather_select = _load_template(GATHER_SELECT_GATHER_IMAGE)
@@ -443,10 +572,10 @@ def solve_screen_detection():
         gather_plus = _load_template(GATHER_PLUS_IMAGE)
         gather_search = _load_template(GATHER_SEARCH_IMAGE)
         gather_pickaxe = _load_template(GATHER_PICKAXE_IMAGE)
+        gather_queue = _load_template(GATHER_QUEUE_IMAGE)
+    if ENABLE_GATHER_SEQUENCE or ENABLE_HUNT_ZOMBIE_SEQUENCE:
         gather_s3 = _load_template(GATHER_SQUAD3_IMAGE)
         gather_s2 = _load_template(GATHER_SQUAD2_IMAGE)
-        gather_queue = _load_template(GATHER_QUEUE_IMAGE)
-        gather_zero_in_use = _load_template(GATHER_ZERO_IN_USE_IMAGE)
     gather_ready = ENABLE_GATHER_SEQUENCE and base_ready and all(x is not None for x in (
         gather_find,
         gather_select,
@@ -457,6 +586,34 @@ def solve_screen_detection():
         gather_s3,
         gather_s2,
         gather_queue,
+        rally_confirm,
+    ))
+    idle_squads = [x for x in (gather_s3, gather_s2) if x is not None]
+
+    # 載入狩獵金幣小殭屍序列圖片
+    hunt_stamina = None
+    hunt_world = None
+    hunt_zoomed_zombie = None
+    hunt_world_base = None
+    hunt_special_event = None
+    hunt_daily_task = None
+    hunt_attack = None
+    if ENABLE_HUNT_ZOMBIE_SEQUENCE:
+        hunt_stamina = _load_template(HUNT_STAMINA_IMAGE)
+        hunt_world = _load_template(HUNT_WORLD_IMAGE)
+        hunt_zoomed_zombie = _load_template(HUNT_ZOOMED_ZOMBIE_IMAGE)
+        hunt_world_base = _load_template(HUNT_WORLD_BASE_IMAGE)
+        hunt_special_event = _load_template(HUNT_SPECIAL_EVENT_IMAGE)
+        hunt_daily_task = _load_template(HUNT_DAILY_TASK_IMAGE)
+        hunt_attack = _load_template(HUNT_ATTACK_IMAGE)
+    hunt_ready = ENABLE_HUNT_ZOMBIE_SEQUENCE and base_ready and all(x is not None for x in (
+        hunt_stamina,
+        hunt_world,
+        hunt_zoomed_zombie,
+        hunt_world_base,
+        hunt_special_event,
+        hunt_daily_task,
+        hunt_attack,
         rally_confirm,
     ))
 
@@ -486,10 +643,14 @@ def solve_screen_detection():
         print("--- 採集序列功能已停用 ---")
     elif gather_ready:
         print("--- 採集序列功能已啟用 ---")
-        if gather_zero_in_use is None:
-            print("【警告】找不到 0隊使用中圖片，第二種採集進入條件已停用")
     else:
         print("【警告】採集序列必要圖片不齊全，已停用該功能")
+    if not ENABLE_HUNT_ZOMBIE_SEQUENCE:
+        print("--- 狩獵金幣小殭屍序列功能已停用 ---")
+    elif hunt_ready:
+        print("--- 狩獵金幣小殭屍序列功能已啟用 ---")
+    else:
+        print("【警告】狩獵金幣小殭屍序列必要圖片不齊全，已停用該功能")
     if not ENABLE_BASE_MONITORING:
         print("--- 基地監測功能已停用 ---")
     elif base_monitor_ready:
@@ -497,7 +658,7 @@ def solve_screen_detection():
     else:
         print("【警告】找不到基地圖片，已停用基地監測")
 
-    if not templates and not any((rally_ready, heal_ready, gather_ready, base_monitor_ready)):
+    if not templates and not any((rally_ready, heal_ready, gather_ready, hunt_ready, base_monitor_ready)):
         print("【錯誤】沒有任何已啟用且可載入的功能。")
         return
 
@@ -506,6 +667,7 @@ def solve_screen_detection():
     last_base_check = time.time()
     base_missing_count = 0
     last_gather_check = time.time() - GATHER_CHECK_INTERVAL
+    last_hunt_check = time.time() - HUNT_CHECK_INTERVAL
 
     with mss.mss() as sct:
         while True:
@@ -552,7 +714,7 @@ def solve_screen_detection():
             if heal_ready and current_time - heal_start['last_clicked'] >= HEAL_SEQUENCE_COOLDOWN:
                 max_val, _, _ = _match(frame, heal_start)
                 if max_val >= THRESHOLD:
-                    time.sleep(0.2)
+                    time.sleep(0.1)
                     frame2 = _grab_frame(sct)
                     max_val2, max_loc2, matched_variant2 = _match(frame2, heal_start)
                     if max_val2 >= THRESHOLD:
@@ -562,28 +724,14 @@ def solve_screen_detection():
                     else:
                         print(f"⚠️ {heal_start['name']} 二次確認失敗 (首次: {max_val:.2f}, 二次: {max_val2:.2f})")
 
-            # 1.7 採集序列檢查：每 1 分鐘偵測一次，任一條件成立就進入序列
+            # 1.7 採集序列檢查：每 1 分鐘偵測一次，基地存在且沒有出征隊列時進入序列
             if gather_ready and current_time - last_gather_check >= GATHER_CHECK_INTERVAL:
                 last_gather_check = current_time
                 val_base, _, _ = _match(frame, base_t)
                 val_queue, _, _ = _match(frame, gather_queue)
-                val_zero_in_use = -1.0
-                if gather_zero_in_use is not None:
-                    val_zero_in_use, _, _ = _match(frame, gather_zero_in_use)
 
-                gather_condition_1 = val_base >= THRESHOLD and val_queue < THRESHOLD
-                gather_condition_2 = (
-                    gather_zero_in_use is not None
-                    and val_base >= THRESHOLD
-                    and val_queue >= THRESHOLD
-                    and val_zero_in_use >= THRESHOLD
-                )
-
-                if gather_condition_1 or gather_condition_2:
-                    if gather_condition_1:
-                        print(f"✅ 採集條件成立：偵測到基地 ({val_base:.2f}) 且未偵測到出征隊列 ({val_queue:.2f})")
-                    else:
-                        print(f"✅ 採集條件成立：基地 ({val_base:.2f})、出征隊列 ({val_queue:.2f})、0隊使用中 ({val_zero_in_use:.2f}) 同時存在")
+                if val_base >= THRESHOLD and val_queue < THRESHOLD:
+                    print(f"✅ 採集條件成立：偵測到基地 ({val_base:.2f}) 且未偵測到出征隊列 ({val_queue:.2f})")
                     _run_gather_sequence(
                         sct,
                         gather_find,
@@ -599,6 +747,32 @@ def solve_screen_detection():
                     )
                     continue
 
+            # 1.8 狩獵金幣小殭屍序列檢查：每 1 分鐘偵測一次體力入口
+            if hunt_ready and current_time - last_hunt_check >= HUNT_CHECK_INTERVAL:
+                last_hunt_check = current_time
+                max_val, _, _ = _match(frame, hunt_stamina)
+                if max_val >= THRESHOLD:
+                    time.sleep(0.1)
+                    frame2 = _grab_frame(sct)
+                    max_val2, max_loc2, matched_variant2 = _match(frame2, hunt_stamina)
+                    if max_val2 >= THRESHOLD:
+                        print(f"✅ {hunt_stamina['name']} 二次確認成功 (匹配度: {max_val:.2f} -> {max_val2:.2f})")
+                        _run_hunt_zombie_sequence(
+                            sct,
+                            base_t,
+                            hunt_world,
+                            hunt_zoomed_zombie,
+                            hunt_world_base,
+                            hunt_special_event,
+                            hunt_daily_task,
+                            idle_squads,
+                            hunt_attack,
+                            rally_confirm,
+                        )
+                        continue
+                    else:
+                        print(f"⚠️ {hunt_stamina['name']} 二次確認失敗 (首次: {max_val:.2f}, 二次: {max_val2:.2f})")
+
             # 2. 檢查清單中的每一張圖
             for t in templates:
                 # 檢查冷卻時間：如果現在時間距離上次點擊還不到 3 秒，直接跳過這張圖不偵測
@@ -609,7 +783,7 @@ def solve_screen_detection():
 
                 if max_val >= THRESHOLD:
                     # 二次確認機制：短暫等待後再次檢測，避免誤判
-                    time.sleep(0.2)
+                    time.sleep(0.1)
 
                     # 重新擷取螢幕並進行第二次匹配
                     screenshot2 = sct.grab(MONITOR_REGION)
@@ -623,12 +797,12 @@ def solve_screen_detection():
                         print(f"✅ {t['name']} 二次確認成功 (匹配度: {max_val:.2f} -> {max_val2:.2f})")
                         _click_template(t, max_loc2, matched_variant2)
 
-                        time.sleep(0.5)  # 點擊後短暫等待，避免連續點擊過快
+                        time.sleep(0.1)  # 點擊後短暫等待，避免連續點擊過快
                     else:
                         print(f"⚠️ {t['name']} 二次確認失敗 (首次: {max_val:.2f}, 二次: {max_val2:.2f})") 
             
             # 降低 CPU 負擔
-            time.sleep(3)   # 每次迴圈結束後等待 3 秒，這樣每張圖的冷卻時間就不會被過度觸發
+            time.sleep(0.5)   # 每次迴圈結束後等待 3 秒，這樣每張圖的冷卻時間就不會被過度觸發
 
 if __name__ == "__main__":
     try:
