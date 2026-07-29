@@ -50,10 +50,10 @@ ENABLE_TAKEMYHEAL_DETECTION = True
 ENABLE_TAKEMYHEAL8LV_DETECTION = True
 ENABLE_HELP_DETECTION = True
 ENABLE_EXIT_GAME_DETECTION = True
-ENABLE_RALLY_SEQUENCE = False
+ENABLE_RALLY_SEQUENCE = True
 ENABLE_HEAL_SEQUENCE = True
-ENABLE_GATHER_SEQUENCE = False
-ENABLE_HUNT_ZOMBIE_SEQUENCE = False
+ENABLE_GATHER_SEQUENCE = True
+ENABLE_HUNT_ZOMBIE_SEQUENCE = True
 ENABLE_BASE_MONITORING = True
 
 # 普通偵測圖片
@@ -72,7 +72,11 @@ if ENABLE_EXIT_GAME_DETECTION:
     TARGET_IMAGES.append(EXIT_GAME_IMAGE)
 
 THRESHOLD = 0.80
-TEMPLATE_SCALES = tuple(scale / 100 for scale in range(80, 121, 5))
+# 模板縮放倍率：每多一階就多一次全螢幕 matchTemplate，成本幾乎線性成長。
+# 原本 80%~120% 共 9 階，單張圖比對就要約 2 秒，主迴圈一輪累積到 13 秒以上，
+# 導致集結提醒從出現到進入序列可能延遲 20 秒。遊戲視窗解析度固定的前提下，
+# 只需保留 1.0 與前後各一階容錯即可。
+TEMPLATE_SCALES = (0.95, 1.0, 1.05)
 
 MONITOR_REGION = {"top": 0, "left": 0, "width": 1920, "height": 1080}
 
@@ -93,7 +97,7 @@ RALLY_BACK_IMAGE = _icon_path('返回.png')
 RALLY_SEQUENCE_COOLDOWN = 10.0
 
 # 集結序列進入前延遲：初次偵測到集結提醒後，等待 N 秒再確認仍存在才進入序列
-RALLY_ENTRY_DELAY = 5.0
+RALLY_ENTRY_DELAY = 3.0
 
 # 集結序列硬性超時：序列若未透過正常路徑結束，超過 N 秒強制中止
 RALLY_SEQUENCE_TIMEOUT = 8.0
@@ -116,7 +120,7 @@ GATHER_STEP_TIMEOUT = 2.0      # 每一步驟的逾時時間
 GATHER_SLOW_STEP_TIMEOUT = 2.0 # 搜索後、出征頁等較慢換頁步驟的逾時時間
 GATHER_FAST_STEP_DELAY = 0.30  # 採集序列一般點擊後的換頁緩衝
 GATHER_SLOW_STEP_DELAY = 0.80  # 採集序列較慢換頁按鈕點擊後的緩衝
-GATHER_QUANTITY_CLICK_RATIO = 0.60
+GATHER_QUANTITY_CLICK_RATIO = 0.50
 
 # 狩獵金幣小殭屍序列相關圖片
 HUNT_STAMINA_IMAGE = _icon_path('體力108.png')
@@ -152,6 +156,51 @@ SEQUENCE_AFTER_CLICK_DELAY = 0.10
 BASE_IMAGE = _icon_path('基地.png')
 BASE_CHECK_INTERVAL = 10.0
 BASE_MISSING_LIMIT = 5
+
+# 需要「彩色」比對的圖片。
+# 灰階比對只有單通道，速度約為彩色的 4 倍，但會丟失顏色資訊；靠顏色區分同形狀
+# UI 的圖片（例如灰色金礦與其他顏色的礦點）轉灰階會誤判，必須留在這份清單裡。
+# 不在清單內的圖片一律以灰階比對。採集序列所有步驟都列入，包含與其他序列共用的
+# 「出征確定」「閒置三隊/二隊」「基地」（採集進入條件會用到）。
+COLOR_REQUIRED_IMAGES = {
+    GATHER_FIND_IMAGE,
+    GATHER_SELECT_GATHER_IMAGE,
+    GATHER_GOLD_MINE_IMAGE,
+    GATHER_MINUS_IMAGE,
+    GATHER_PLUS_IMAGE,
+    GATHER_SEARCH_IMAGE,
+    GATHER_PICKAXE_IMAGE,
+    GATHER_SQUAD3_IMAGE,
+    GATHER_SQUAD2_IMAGE,
+    GATHER_QUEUE_IMAGE,
+    RALLY_CONFIRM_IMAGE,
+    BASE_IMAGE,
+}
+
+# 圖示搜尋區域（ROI）：固定出現在畫面某一塊的圖示，只比對那一塊即可，
+# 比對成本與面積成正比，縮小範圍是目前效益最大的加速手段。
+# - 座標為螢幕絕對座標，格式同 MONITOR_REGION；超出畫面的部分會自動裁掉。
+# - 未列在這裡的圖片一律搜尋整個 MONITOR_REGION。
+# - 用 roi_finder.py 量測：python roi_finder.py 集結提醒.png
+# 目前的值 = 實測圖示位置四周各放寬 200px，容納每次開視窗的位置偏移。
+# 若遊戲視窗位置變動超過這個範圍會直接偵測不到，屆時重新量測或再放寬。
+IMAGE_ROIS = {
+    # 實測位置 (1710,652)-(1742,681)，±200px
+    RALLY_NOTIFY_IMAGE: {"top": 452, "left": 1510, "width": 410, "height": 429},
+    # 實測位置 (1660,945)-(1776,984)，±200px（右下角，往右往下已到畫面邊界）
+    BASE_IMAGE: {"top": 745, "left": 1460, "width": 460, "height": 335},
+    # 實測位置 (22,796)-(60,831)，±200px（左下角，往左已到畫面邊界）
+    GATHER_FIND_IMAGE: {"top": 596, "left": 0, "width": 260, "height": 435},
+    # 實測位置 (12,220)-(130,246)，±200px（左側，往左已到畫面邊界）
+    GATHER_QUEUE_IMAGE: {"top": 20, "left": 0, "width": 330, "height": 426},
+    # 實測位置 (1708,111)-(1747,171)，±200px（右上角，往上往右已到畫面邊界）
+    HUNT_SPECIAL_EVENT_IMAGE: {"top": 0, "left": 1508, "width": 412, "height": 371},
+    # 實測位置 (15,870)-(43,924)，±200px（左下角，往左往下已到畫面邊界）
+    HUNT_DAILY_TASK_IMAGE: {"top": 670, "left": 0, "width": 243, "height": 410},
+    # 實測位置 (11,113)-(52,133)，±200px（左上角，往左往上已到畫面邊界）
+    # 註：體力數字會變動，匹配度本來就會浮動（實測 0.69~0.83），但位置固定
+    HUNT_STAMINA_IMAGE: {"top": 0, "left": 0, "width": 252, "height": 333},
+}
 # ===========================================
 
 
@@ -171,6 +220,9 @@ def _load_template(path):
     if img is None:
         print(f"【警告】找不到圖片檔案: {path}")
         return None
+    use_gray = path not in COLOR_REQUIRED_IMAGES
+    if use_gray:
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     h, w = img.shape[:2]
     variants = []
     seen_sizes = set()
@@ -185,7 +237,17 @@ def _load_template(path):
         else:
             scaled_img = cv2.resize(img, (scaled_w, scaled_h), interpolation=cv2.INTER_AREA)
         variants.append({'img': scaled_img, 'w': scaled_w, 'h': scaled_h, 'scale': scale})
-    return {'variants': variants, 'name': path, 'last_clicked': 0}
+    roi = IMAGE_ROIS.get(path)
+    if roi is not None:
+        # ROI 比模板還小的話，該圖示會永遠比對不到，且不會有任何錯誤訊息，
+        # 這裡先擋下來，避免設錯 ROI 後功能靜默失效。
+        max_w = max(v['w'] for v in variants)
+        max_h = max(v['h'] for v in variants)
+        if roi['width'] < max_w or roi['height'] < max_h:
+            print(f"【警告】{path} 的 ROI ({roi['width']}x{roi['height']}) 小於模板 "
+                  f"({max_w}x{max_h})，已忽略 ROI 改為全畫面搜尋")
+            roi = None
+    return {'variants': variants, 'name': path, 'last_clicked': 0, 'gray': use_gray, 'roi': roi}
 
 
 def _grab_frame(sct):
@@ -211,6 +273,24 @@ def _click_template(t, max_loc, matched_variant):
 
 
 def _match(frame, t):
+    # 灰階模板需要單通道畫面；呼叫端一律傳 BGR，這裡就地轉換（約 1ms），
+    # 讓所有呼叫端不必關心自己手上的圖是哪種模板要用的。
+    if t['gray'] and frame.ndim == 3:
+        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+
+    # 有設 ROI 就只比對那一塊；裁切後座標會位移，最後把偏移量加回去，
+    # 讓回傳的 loc 仍然是相對 MONITOR_REGION 的座標，呼叫端不必知道 ROI 存在。
+    offset_x = offset_y = 0
+    roi = t['roi']
+    if roi is not None:
+        x0 = max(0, roi['left'] - MONITOR_REGION["left"])
+        y0 = max(0, roi['top'] - MONITOR_REGION["top"])
+        x1 = min(frame.shape[1], x0 + roi['width'])
+        y1 = min(frame.shape[0], y0 + roi['height'])
+        if x1 > x0 and y1 > y0:
+            frame = frame[y0:y1, x0:x1]
+            offset_x, offset_y = x0, y0
+
     frame_h, frame_w = frame.shape[:2]
     best_val = -1.0
     best_loc = (0, 0)
@@ -224,7 +304,7 @@ def _match(frame, t):
             best_val = max_val
             best_loc = max_loc
             best_variant = variant
-    return best_val, best_loc, best_variant
+    return best_val, (best_loc[0] + offset_x, best_loc[1] + offset_y), best_variant
 
 
 def _detect_and_click_within(sct, t, timeout, after_click_delay=SEQUENCE_AFTER_CLICK_DELAY):
@@ -695,8 +775,12 @@ def solve_screen_detection():
                         base_missing_count = 0
 
             # 1.5 集結序列優先檢查：偵測到「集結提醒」後延遲確認，仍存在才進入序列
+            #     這裡不沿用迴圈開頭的 frame，改重抓一張最新畫面：迴圈開頭那張在跑完
+            #     前面步驟後已經過期，集結提醒若在本輪中途才彈出就會被漏掉，必須等下
+            #     一輪才看得到。重抓一次約 30ms，遠小於漏掉一輪的代價。
             if rally_ready and current_time - rally_notify['last_clicked'] >= RALLY_SEQUENCE_COOLDOWN:
-                max_val, _, _ = _match(frame, rally_notify)
+                rally_frame = _grab_frame(sct)
+                max_val, _, _ = _match(rally_frame, rally_notify)
                 if max_val >= THRESHOLD:
                     print(f"✅ 偵測到 {rally_notify['name']} (匹配度: {max_val:.2f})，等待 {RALLY_ENTRY_DELAY:.0f} 秒後再次確認")
                     time.sleep(RALLY_ENTRY_DELAY)
@@ -802,7 +886,7 @@ def solve_screen_detection():
                         print(f"⚠️ {t['name']} 二次確認失敗 (首次: {max_val:.2f}, 二次: {max_val2:.2f})") 
             
             # 降低 CPU 負擔
-            time.sleep(0.5)   # 每次迴圈結束後等待 3 秒，這樣每張圖的冷卻時間就不會被過度觸發
+            time.sleep(1)   # 每次迴圈結束後等待 3 秒，這樣每張圖的冷卻時間就不會被過度觸發
 
 if __name__ == "__main__":
     try:
