@@ -200,6 +200,24 @@ IMAGE_ROIS = {
     # 實測位置 (11,113)-(52,133)，±200px（左上角，往左往上已到畫面邊界）
     # 註：體力數字會變動，匹配度本來就會浮動（實測 0.69~0.83），但位置固定
     HUNT_STAMINA_IMAGE: {"top": 0, "left": 0, "width": 252, "height": 333},
+    # 閒置三隊 (904,907)-(918,966)、閒置二隊 (788,906)-(802,966)，兩者共用同一個
+    # 涵蓋範圍：它們是出征頁隊伍列表中相鄰的項目，某隊出征中時列表可能重排位置，
+    # 用同一塊涵蓋兩者的區域比各自抓緊來得安全（代價只是少 3 倍加速）。
+    GATHER_SQUAD3_IMAGE: {"top": 706, "left": 588, "width": 530, "height": 374},
+    GATHER_SQUAD2_IMAGE: {"top": 706, "left": 588, "width": 530, "height": 374},
+    # 採集數量列的左右兩端，位置固定不會互換，各自抓緊。
+    # 這裡刻意讓兩塊區域互不涵蓋對方的按鈕（減號止於 x=941，加號起於 x=842，
+    # 而減號在 x=703、加號在 x=1042），順便避免這兩個外觀相似的圓鈕互相誤判。
+    # 實測位置 (703,877)-(741,912)，±200px
+    GATHER_MINUS_IMAGE: {"top": 677, "left": 503, "width": 438, "height": 403},
+    # 實測位置 (1042,876)-(1078,913)，±200px
+    GATHER_PLUS_IMAGE: {"top": 676, "left": 842, "width": 436, "height": 404},
+    # 實測位置 (839,938)-(948,979)，±200px（與加號減號同一頁，往下已到畫面邊界）
+    GATHER_SEARCH_IMAGE: {"top": 738, "left": 639, "width": 509, "height": 342},
+    # 實測位置 (1010,598)-(1119,718)，±200px（搜索頁的礦種圖示）
+    GATHER_GOLD_MINE_IMAGE: {"top": 398, "left": 810, "width": 509, "height": 520},
+    # 實測位置 (868,512)-(913,532)，±200px
+    GATHER_SELECT_GATHER_IMAGE: {"top": 312, "left": 668, "width": 445, "height": 420},
 }
 # ===========================================
 
@@ -574,6 +592,7 @@ def _run_heal_sequence(sct, start_t, confirm_t, lookforhelp_t, start_loc, start_
     if not _expired() and _detect_and_click_within(sct, confirm_t, timeout=2):
         # 步驟 3：2 秒內偵測 lookforhelp
         if not _expired():
+            time.sleep(0.5)
             _detect_and_click_within(sct, lookforhelp_t, timeout=2)
 
     if _expired():
