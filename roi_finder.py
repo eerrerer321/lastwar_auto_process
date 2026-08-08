@@ -3,12 +3,19 @@
 用途：找出某張圖示實際會出現在螢幕的哪個範圍，以便日後把該圖示的搜尋區域
 從全螢幕縮小成一小塊 ROI（面積縮小 8 倍 ≈ 比對快 8 倍）。
 
+icon/ 依用途分子資料夾（共用、集結序列、採集序列…）。指定圖片時可以只給檔名
+（會自動在所有子資料夾找，找到超過一個會列出候選要求指定相對路徑），也可以直接
+給相對路徑（例如 集結序列/集結提醒.png）。
+
 用法：
     # 盯著「集結提醒」，每次出現就印座標；Ctrl+C 結束並輸出建議 ROI
     python roi_finder.py 集結提醒.png
 
     # 同時盯多張（適合同一位置的不同狀態，例如閒置三隊／二隊）
     python roi_finder.py 閒置三隊.png 閒置二隊.png
+
+    # 檔名在多個資料夾重複時，用相對路徑指定
+    python roi_finder.py 同盟捐獻序列/捐獻.png
 
     # 掃描目前畫面，列出所有能匹配到的圖示位置（遊戲畫面要先擺好）
     python roi_finder.py --scan
@@ -63,9 +70,33 @@ def _countdown(delay):
     print("    開始              ")
 
 
+def _rel(path):
+    return path.relative_to(D.ICON_DIR).as_posix()
+
+
+def _resolve_icon(name):
+    """把使用者輸入解析成 icon/ 下的實際檔案路徑。
+
+    支援純檔名（自動在所有子資料夾找）與相對路徑（例如 集結序列/集結提醒.png）。
+    """
+    direct = D.ICON_DIR / name
+    if direct.exists():
+        return direct
+    matches = sorted(D.ICON_DIR.rglob(name))
+    if len(matches) == 1:
+        return matches[0]
+    if len(matches) > 1:
+        print(f"【錯誤】{name} 在多個資料夾都有，請改用相對路徑指定：")
+        for m in matches:
+            print(f"    {_rel(m)}")
+        return None
+    print(f"【警告】找不到 {name}")
+    return None
+
+
 def scan_once(delay=0):
     """掃描目前畫面，列出所有 icon 的匹配度與位置。"""
-    paths = sorted(D.ICON_DIR.glob('*.png'))
+    paths = sorted(D.ICON_DIR.rglob('*.png'))
     if not paths:
         print(f"【錯誤】{D.ICON_DIR} 下找不到任何 png")
         return
@@ -84,22 +115,22 @@ def scan_once(delay=0):
         val, loc, variant = D._match(frame, t)
         if val >= D.THRESHOLD:
             box = _center_and_box(loc, variant)
-            hits.append((val, p.name, box, variant['scale']))
+            hits.append((val, _rel(p), box, variant['scale']))
         else:
-            misses.append((val, p.name))
+            misses.append((val, _rel(p)))
 
     print(f"=== 有匹配到（{len(hits)} 張）===")
     for val, name, box, scale in sorted(hits, reverse=True):
-        print(f"  {name:24s} 匹配 {val:.2f} scale {scale:.2f}  "
+        print(f"  {name:32s} 匹配 {val:.2f} scale {scale:.2f}  "
               f"左上({box['left']},{box['top']}) 右下({box['right']},{box['bottom']}) "
               f"中心({box['cx']},{box['cy']})")
 
     print(f"\n=== 未達門檻（{len(misses)} 張，僅列最高 10 筆）===")
     for val, name in sorted(misses, reverse=True)[:10]:
-        print(f"  {name:24s} 匹配 {val:.2f}")
+        print(f"  {name:32s} 匹配 {val:.2f}")
 
 
-def _suggest_roi(filename, hits, margin):
+def _suggest_roi(rel_path, hits, margin):
     """把累積到的命中框換算成建議 ROI，並印出可貼進 IMAGE_ROIS 的一行。"""
     lefts = [b['left'] for b in hits]
     tops = [b['top'] for b in hits]
@@ -118,11 +149,17 @@ def _suggest_roi(filename, hits, margin):
     full_area = D.MONITOR_REGION["width"] * D.MONITOR_REGION["height"]
     ratio = full_area / max(1, roi_w * roi_h)
 
-    print(f"[{filename}] 共 {len(hits)} 次命中，實際出現範圍："
+    if '/' in rel_path:
+        folder, base = rel_path.split('/', 1)
+        icon_call = f"_icon_path('{folder}', '{base}')"
+    else:
+        icon_call = f"_icon_path('{rel_path}')"
+
+    print(f"[{rel_path}] 共 {len(hits)} 次命中，實際出現範圍："
           f"左上({min(lefts)},{min(tops)}) 右下({max(rights)},{max(bottoms)})")
     print(f"  四周各留 {margin}px 緩衝，比對面積約可縮小 {ratio:.1f} 倍：")
     print(f'    # 實測位置 ({min(lefts)},{min(tops)})-({max(rights)},{max(bottoms)})，±{margin}px')
-    print(f'    _icon_path(\'{filename}\'): '
+    print(f'    {icon_call}: '
           f'{{"top": {roi_top}, "left": {roi_left}, "width": {roi_w}, "height": {roi_h}}},\n')
 
 
@@ -132,9 +169,12 @@ def watch(filenames, margin=ROI_MARGIN, interval=SCAN_INTERVAL, seconds=0, delay
     D.IMAGE_ROIS = {}
     targets = []
     for name in filenames:
-        t = D._load_template(D.ICON_DIR / name)
+        resolved = _resolve_icon(name)
+        if resolved is None:
+            continue
+        t = D._load_template(resolved)
         if t is not None:
-            targets.append({'name': name, 't': t, 'hits': []})
+            targets.append({'name': _rel(resolved), 't': t, 'hits': []})
     D.IMAGE_ROIS = saved_rois
     if not targets:
         return

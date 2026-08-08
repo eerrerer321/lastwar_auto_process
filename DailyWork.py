@@ -41,8 +41,9 @@ else:
 ICON_DIR = BASE_DIR / 'icon'
 
 
-def _icon_path(filename):
-    return ICON_DIR / filename
+def _icon_path(*parts):
+    """icon/ 依用途分子資料夾（共用、普通偵測、集結序列…），parts 為相對路徑片段。"""
+    return ICON_DIR.joinpath(*parts)
 
 
 # 功能開關：要停用某項功能時，將 True 改成 False。
@@ -55,12 +56,13 @@ ENABLE_HEAL_SEQUENCE = True
 ENABLE_GATHER_SEQUENCE = True
 ENABLE_HUNT_ZOMBIE_SEQUENCE = True
 ENABLE_BASE_MONITORING = True
+ENABLE_DONATE_SEQUENCE = True
 
 # 普通偵測圖片
-TAKEMYHEAL_IMAGE = _icon_path('takemyheal.png')
-TAKEMYHEAL8LV_IMAGE = _icon_path('takemyheal8lv.png')
-HELP_IMAGE = _icon_path('help.png')
-EXIT_GAME_IMAGE = _icon_path('退出遊戲.png')
+TAKEMYHEAL_IMAGE = _icon_path('普通偵測', 'takemyheal.png')
+TAKEMYHEAL8LV_IMAGE = _icon_path('普通偵測', 'takemyheal8lv.png')
+HELP_IMAGE = _icon_path('普通偵測', 'help.png')
+EXIT_GAME_IMAGE = _icon_path('普通偵測', '退出遊戲.png')
 TARGET_IMAGES = []
 if ENABLE_TAKEMYHEAL_DETECTION:
     TARGET_IMAGES.append(TAKEMYHEAL_IMAGE)
@@ -88,10 +90,10 @@ FIXED_CLICK_Y = 1000
 INDIVIDUAL_COOLDOWN = 1.0
 
 # 集結序列圖片
-RALLY_NOTIFY_IMAGE = _icon_path('集結提醒.png')
-RALLY_JOIN_IMAGE = _icon_path('加入集結+.png')
-RALLY_CONFIRM_IMAGE = _icon_path('出征確定.png')
-RALLY_BACK_IMAGE = _icon_path('返回.png')
+RALLY_NOTIFY_IMAGE = _icon_path('集結序列', '集結提醒.png')
+RALLY_JOIN_IMAGE = _icon_path('集結序列', '加入集結+.png')
+RALLY_CONFIRM_IMAGE = _icon_path('共用', '出征確定.png')
+RALLY_BACK_IMAGE = _icon_path('集結序列', '返回.png')
 
 # 集結序列冷卻：序列結束後 N 秒內不再進入序列（期間其他偵測照常運作）
 RALLY_SEQUENCE_COOLDOWN = 10.0
@@ -103,16 +105,16 @@ RALLY_ENTRY_DELAY = 3.0
 RALLY_SEQUENCE_TIMEOUT = 8.0
 
 # 採集序列相關圖片
-GATHER_FIND_IMAGE = _icon_path('尋找.png')
-GATHER_SELECT_GATHER_IMAGE = _icon_path('選擇採集.png')
-GATHER_GOLD_MINE_IMAGE = _icon_path('灰色金礦.png')
-GATHER_MINUS_IMAGE = _icon_path('減號.png')
-GATHER_PLUS_IMAGE = _icon_path('加號.png')
-GATHER_SEARCH_IMAGE = _icon_path('搜索.png')
-GATHER_PICKAXE_IMAGE = _icon_path('十字鎬.png')
-GATHER_SQUAD3_IMAGE = _icon_path('閒置三隊.png')
-GATHER_SQUAD2_IMAGE = _icon_path('閒置二隊.png')
-GATHER_QUEUE_IMAGE = _icon_path('出征隊列.png')
+GATHER_FIND_IMAGE = _icon_path('採集序列', '尋找.png')
+GATHER_SELECT_GATHER_IMAGE = _icon_path('採集序列', '選擇採集.png')
+GATHER_GOLD_MINE_IMAGE = _icon_path('採集序列', '灰色金礦.png')
+GATHER_MINUS_IMAGE = _icon_path('採集序列', '減號.png')
+GATHER_PLUS_IMAGE = _icon_path('採集序列', '加號.png')
+GATHER_SEARCH_IMAGE = _icon_path('採集序列', '搜索.png')
+GATHER_PICKAXE_IMAGE = _icon_path('採集序列', '十字鎬.png')
+GATHER_SQUAD3_IMAGE = _icon_path('共用', '閒置三隊.png')
+GATHER_SQUAD2_IMAGE = _icon_path('共用', '閒置二隊.png')
+GATHER_QUEUE_IMAGE = _icon_path('採集序列', '出征隊列.png')
 
 # 採集序列配置
 GATHER_CHECK_INTERVAL = 60.0   # 1 分鐘檢查一次
@@ -123,13 +125,13 @@ GATHER_SLOW_STEP_DELAY = 0.80  # 採集序列較慢換頁按鈕點擊後的緩�
 GATHER_QUANTITY_CLICK_RATIO = 0.50
 
 # 狩獵金幣小殭屍序列相關圖片
-HUNT_STAMINA_IMAGE = _icon_path('體力108.png')
-HUNT_WORLD_IMAGE = _icon_path('世界.png')
-HUNT_ZOOMED_ZOMBIE_IMAGE = _icon_path('縮小15段後金幣殭屍.png')
-HUNT_WORLD_BASE_IMAGE = _icon_path('世界視角基地.png')
-HUNT_SPECIAL_EVENT_IMAGE = _icon_path('特殊事件.png')
-HUNT_DAILY_TASK_IMAGE = _icon_path('每日任務.png')
-HUNT_ATTACK_IMAGE = _icon_path('攻擊按鈕.png')
+HUNT_STAMINA_IMAGE = _icon_path('狩獵金幣小殭屍序列', '體力108.png')
+HUNT_WORLD_IMAGE = _icon_path('狩獵金幣小殭屍序列', '世界.png')
+HUNT_ZOOMED_ZOMBIE_IMAGE = _icon_path('狩獵金幣小殭屍序列', '縮小15段後金幣殭屍.png')
+HUNT_WORLD_BASE_IMAGE = _icon_path('狩獵金幣小殭屍序列', '世界視角基地.png')
+HUNT_SPECIAL_EVENT_IMAGE = _icon_path('狩獵金幣小殭屍序列', '特殊事件.png')
+HUNT_DAILY_TASK_IMAGE = _icon_path('狩獵金幣小殭屍序列', '每日任務.png')
+HUNT_ATTACK_IMAGE = _icon_path('狩獵金幣小殭屍序列', '攻擊按鈕.png')
 
 # 狩獵金幣小殭屍序列配置
 HUNT_CHECK_INTERVAL = 60.0
@@ -139,9 +141,9 @@ HUNT_SCROLL_STEPS = 15
 HUNT_SCROLL_INTERVAL = 0.2
 
 # 治療序列圖片
-HEAL_START_IMAGE = _icon_path('startmyheal.png')
-HEAL_CONFIRM_IMAGE = _icon_path('confirmheal_PC.png')
-HEAL_LOOKFORHELP_IMAGE = _icon_path('lookforhelp.png')
+HEAL_START_IMAGE = _icon_path('治療序列', 'startmyheal.png')
+HEAL_CONFIRM_IMAGE = _icon_path('治療序列', 'confirmheal_PC.png')
+HEAL_LOOKFORHELP_IMAGE = _icon_path('治療序列', 'lookforhelp.png')
 
 # 治療序列冷卻與硬性超時
 HEAL_SEQUENCE_COOLDOWN = 5.0
@@ -153,9 +155,32 @@ SEQUENCE_AFTER_CLICK_DELAY = 0.10
 
 # 基地監測：每隔 BASE_CHECK_INTERVAL 秒檢查畫面是否出現「基地」，
 # 連續 BASE_MISSING_LIMIT 次未出現就按一下 ESC 並把計數歸零重新開始
-BASE_IMAGE = _icon_path('基地.png')
+BASE_IMAGE = _icon_path('共用', '基地.png')
 BASE_CHECK_INTERVAL = 10.0
 BASE_MISSING_LIMIT = 5
+
+# 同盟捐獻序列圖片
+DONATE_ALLIANCE_IMAGE = _icon_path('同盟捐獻序列', '同盟.png')
+DONATE_ALLIANCE_TECH_IMAGE = _icon_path('同盟捐獻序列', '同盟科技.png')
+DONATE_RECOMMEND_TECH_IMAGE = _icon_path('同盟捐獻序列', '推薦科技.png')
+DONATE_BUTTON_IMAGE = _icon_path('同盟捐獻序列', '捐獻.png')
+
+# 同盟捐獻序列配置：每 DONATE_INTERVAL 秒執行一次。
+# 這裡採用「到期就標記為待執行，直到真的執行完才清除」的方式排隊：主迴圈每一輪
+# 都會檢查是否到期，但集結/治療/採集/狩獵任一序列若在同一輪搶先觸發，主迴圈會
+# 直接 continue 到下一輪，這一輪就不會檢查到同盟捐獻——不會被判定「已執行」，
+# 下一輪還是到期狀態，所以會在目前序列結束後的第一個空檔補上，而不是被跳過或
+# 等到下一個 2 小時週期。
+DONATE_INTERVAL = 7200.0
+# 前三步驟（同盟／同盟科技／推薦科技）各自的偵測逾時
+DONATE_STEP_TIMEOUT = 2.0
+# 按住「捐獻」持續秒數
+DONATE_HOLD_SECONDS = 5.0
+# 放開「捐獻」後、開始按 ESC 前的等待
+DONATE_AFTER_HOLD_DELAY = 0.5
+# 結束序列前按 ESC 的次數與間隔
+DONATE_ESC_COUNT = 4
+DONATE_ESC_INTERVAL = 0.5
 
 # 需要「彩色」比對的圖片。
 # 灰階比對只有單通道，速度約為彩色的 4 倍，但會丟失顏色資訊；靠顏色區分同形狀
@@ -218,6 +243,15 @@ IMAGE_ROIS = {
     GATHER_GOLD_MINE_IMAGE: {"top": 398, "left": 810, "width": 509, "height": 520},
     # 實測位置 (868,512)-(913,532)，±200px
     GATHER_SELECT_GATHER_IMAGE: {"top": 312, "left": 668, "width": 445, "height": 420},
+    # 實測位置 (1586,725)-(1633,767)，±200px
+    DONATE_ALLIANCE_IMAGE: {"top": 525, "left": 1386, "width": 447, "height": 442},
+    # 實測位置 (848,671)-(1039,732)，±200px
+    DONATE_ALLIANCE_TECH_IMAGE: {"top": 471, "left": 648, "width": 591, "height": 461},
+    # 實測位置 (596,266)-(785,587)，±500px（推薦科技的位置可能變動較大，緩衝放寬到
+    # ±500；等於畫面上半部幾乎整塊，加速倍率因此有限，但比全畫面仍快）
+    DONATE_RECOMMEND_TECH_IMAGE: {"top": 0, "left": 96, "width": 1189, "height": 1080},
+    # 實測位置 (893,763)-(1001,797)，±200px
+    DONATE_BUTTON_IMAGE: {"top": 563, "left": 693, "width": 508, "height": 434},
 }
 # ===========================================
 
@@ -286,6 +320,22 @@ def _click_template(t, max_loc, matched_variant):
     final_x = target_x + random.randint(-3, 3)
     final_y = target_y + random.randint(-3, 3)
     pyautogui.click(final_x, final_y)
+    pyautogui.moveTo(10, 10)
+    t['last_clicked'] = time.time()
+
+
+def _hold_template(t, max_loc, matched_variant, hold_seconds):
+    """在偵測到的位置按住滑鼠左鍵 hold_seconds 秒後放開（例如長按捐獻）。"""
+    if matched_variant is None:
+        return
+    target_x = MONITOR_REGION["left"] + max_loc[0] + matched_variant['w'] // 2
+    target_y = MONITOR_REGION["top"] + max_loc[1] + matched_variant['h'] // 2
+    final_x = target_x + random.randint(-3, 3)
+    final_y = target_y + random.randint(-3, 3)
+    pyautogui.moveTo(final_x, final_y)
+    pyautogui.mouseDown()
+    time.sleep(hold_seconds)
+    pyautogui.mouseUp()
     pyautogui.moveTo(10, 10)
     t['last_clicked'] = time.time()
 
@@ -603,6 +653,55 @@ def _run_heal_sequence(sct, start_t, confirm_t, lookforhelp_t, start_loc, start_
     print(f"=== 治療序列結束（{HEAL_SEQUENCE_COOLDOWN:.0f} 秒內不再進入序列）===")
 
 
+def _detect_and_hold_within(sct, t, timeout, hold_seconds):
+    """在 timeout 秒內持續偵測 t，偵測到就按住 hold_seconds 秒後放開；回傳是否執行成功。"""
+    start = time.time()
+    while time.time() - start < timeout:
+        frame = _grab_frame(sct)
+        max_val, max_loc, matched_variant = _match(frame, t)
+        if max_val >= THRESHOLD:
+            print(f"✅ {t['name']} 偵測到 (匹配度: {max_val:.2f})，按住 {hold_seconds:.0f} 秒")
+            _hold_template(t, max_loc, matched_variant, hold_seconds)
+            return True
+        time.sleep(SEQUENCE_POLLING_INTERVAL)
+    return False
+
+
+def _run_donate_sequence(sct, alliance_t, tech_t, recommend_t, donate_t):
+    """同盟捐獻序列：同盟 → 同盟科技 → 推薦科技 → 按住捐獻 5 秒 → 連按 4 下 ESC。
+
+    任一前三步驟在 DONATE_STEP_TIMEOUT 內偵測不到就按 ESC 中止；捐獻按鈕偵測不到
+    同樣中止（此時尚未按下滑鼠，不需要額外收尾）。
+    """
+
+    def _abort(message):
+        print(f"⚠️ {message}，按 ESC 結束同盟捐獻序列")
+        pyautogui.press('esc')
+
+    print("=== 進入同盟捐獻序列 ===")
+
+    if not _detect_and_click_within(sct, alliance_t, timeout=DONATE_STEP_TIMEOUT):
+        _abort(f"{DONATE_STEP_TIMEOUT:.0f} 秒內未偵測到 {alliance_t['name']}")
+        return
+    if not _detect_and_click_within(sct, tech_t, timeout=DONATE_STEP_TIMEOUT):
+        _abort(f"{DONATE_STEP_TIMEOUT:.0f} 秒內未偵測到 {tech_t['name']}")
+        return
+    if not _detect_and_click_within(sct, recommend_t, timeout=DONATE_STEP_TIMEOUT):
+        _abort(f"{DONATE_STEP_TIMEOUT:.0f} 秒內未偵測到 {recommend_t['name']}")
+        return
+    if not _detect_and_hold_within(sct, donate_t, timeout=DONATE_STEP_TIMEOUT, hold_seconds=DONATE_HOLD_SECONDS):
+        _abort(f"{DONATE_STEP_TIMEOUT:.0f} 秒內未偵測到 {donate_t['name']}")
+        return
+
+    time.sleep(DONATE_AFTER_HOLD_DELAY)
+    for i in range(DONATE_ESC_COUNT):
+        pyautogui.press('esc')
+        if i < DONATE_ESC_COUNT - 1:
+            time.sleep(DONATE_ESC_INTERVAL)
+
+    print(f"=== 同盟捐獻序列結束（下次約 {DONATE_INTERVAL / 3600:.0f} 小時後）===")
+
+
 def solve_screen_detection():
     if not (
         TARGET_IMAGES
@@ -611,6 +710,7 @@ def solve_screen_detection():
         or ENABLE_GATHER_SEQUENCE
         or ENABLE_HUNT_ZOMBIE_SEQUENCE
         or ENABLE_BASE_MONITORING
+        or ENABLE_DONATE_SEQUENCE
     ):
         print("【錯誤】所有功能開關皆為 False，沒有可執行項目。")
         return
@@ -716,6 +816,20 @@ def solve_screen_detection():
         rally_confirm,
     ))
 
+    # 載入同盟捐獻序列圖片
+    donate_alliance = None
+    donate_tech = None
+    donate_recommend = None
+    donate_button = None
+    if ENABLE_DONATE_SEQUENCE:
+        donate_alliance = _load_template(DONATE_ALLIANCE_IMAGE)
+        donate_tech = _load_template(DONATE_ALLIANCE_TECH_IMAGE)
+        donate_recommend = _load_template(DONATE_RECOMMEND_TECH_IMAGE)
+        donate_button = _load_template(DONATE_BUTTON_IMAGE)
+    donate_ready = ENABLE_DONATE_SEQUENCE and all(x is not None for x in (
+        donate_alliance, donate_tech, donate_recommend, donate_button,
+    ))
+
     print(f"--- 獨立冷卻模式啟動 ---")
     print(f"每張圖片獨立冷卻: {INDIVIDUAL_COOLDOWN} 秒")
     print(f"模板縮放倍率: {', '.join(f'{scale * 100:.0f}%' for scale in TEMPLATE_SCALES)}")
@@ -756,8 +870,14 @@ def solve_screen_detection():
         print(f"--- 基地監測功能已啟用（每 {BASE_CHECK_INTERVAL:.0f} 秒檢查，連續 {BASE_MISSING_LIMIT} 次未出現按 ESC）---")
     else:
         print("【警告】找不到基地圖片，已停用基地監測")
+    if not ENABLE_DONATE_SEQUENCE:
+        print("--- 同盟捐獻序列功能已停用 ---")
+    elif donate_ready:
+        print(f"--- 同盟捐獻序列功能已啟用（每 {DONATE_INTERVAL / 3600:.0f} 小時執行一次）---")
+    else:
+        print("【警告】同盟捐獻序列必要圖片不齊全，已停用該功能")
 
-    if not templates and not any((rally_ready, heal_ready, gather_ready, hunt_ready, base_monitor_ready)):
+    if not templates and not any((rally_ready, heal_ready, gather_ready, hunt_ready, base_monitor_ready, donate_ready)):
         print("【錯誤】沒有任何已啟用且可載入的功能。")
         return
 
@@ -767,6 +887,10 @@ def solve_screen_detection():
     base_missing_count = 0
     last_gather_check = time.time() - GATHER_CHECK_INTERVAL
     last_hunt_check = time.time() - HUNT_CHECK_INTERVAL
+    # 同盟捐獻序列的到期時間戳：只有序列「真正執行完」才會更新，若當輪被更高優先
+    # 序的序列搶走（continue 到下一輪），這裡維持到期狀態，下一輪會繼續嘗試，
+    # 等於排隊補做，不會被跳過或延到下一個 2 小時整點。
+    last_donate_run = time.time() - DONATE_INTERVAL
 
     with mss.mss() as sct:
         while True:
@@ -875,6 +999,15 @@ def solve_screen_detection():
                         continue
                     else:
                         print(f"⚠️ {hunt_stamina['name']} 二次確認失敗 (首次: {max_val:.2f}, 二次: {max_val2:.2f})")
+
+            # 1.9 同盟捐獻序列檢查：每 DONATE_INTERVAL 秒到期一次。
+            #     只有序列實際執行完才會更新 last_donate_run；若這一輪被上面任何
+            #     優先序更高的序列搶走（各自 continue），到期狀態會留到下一輪，
+            #     在目前序列結束後的第一個空檔補做，不會被跳過。
+            if donate_ready and current_time - last_donate_run >= DONATE_INTERVAL:
+                _run_donate_sequence(sct, donate_alliance, donate_tech, donate_recommend, donate_button)
+                last_donate_run = time.time()
+                continue
 
             # 2. 檢查清單中的每一張圖
             for t in templates:
