@@ -49,13 +49,15 @@ start_dailywork.bat
 python DailyWork.py --console
 ```
 
-命令列模式可按 `Ctrl+C` 停止。已有的 `dist/DailyWork.exe` 必須重新建置才會包含新介面。
+命令列模式可按 `Ctrl+C` 停止。
+
+要打包成單一 exe（icon 內嵌、不開命令視窗）時，執行 `build.bat`，成品在 `dist\DailyWork.exe`。exe 版只有操作介面；因為沒有命令視窗，不要用 `--console` 啟動 exe。
 
 > 注意：程式已關閉 PyAutoGUI 的滑鼠角落緊急停止機制，避免滑鼠經過螢幕左上角時誤停。
 
 ## 主要行為
 
-程式會擷取 `MONITOR_REGION` 設定的畫面範圍，使用 `icon/` 內的圖片模板進行比對。預設比對門檻為 `0.70`，模板會使用 80% 到 120% 的縮放倍率，每 5% 建立一個比對版本。
+程式會擷取 `MONITOR_REGION` 設定的畫面範圍，使用 `icon/` 內的圖片模板進行比對。預設比對門檻為 `0.80`，模板會以 95%、100%、105% 三種縮放倍率比對（`TEMPLATE_SCALES`）。
 
 ## 功能開關
 
@@ -156,6 +158,20 @@ python DailyWork.py --console
 
 除「縮小15段後金幣殭屍」可走返回基地分支外，任何步驟 2 秒內偵測不到需要的圖片，都會按 `ESC` 並結束狩獵序列。
 
+### 同盟捐獻序列
+
+每 `DONATE_INTERVAL` 秒執行一次（預設 7200 秒＝2 小時）；開始執行後的第一個空檔會先跑一次。
+
+流程：
+
+1. 點擊 `同盟.png`
+2. 點擊 `同盟科技.png`
+3. 點擊 `推薦科技.png`
+4. 偵測 `捐獻.png` 或 `捐獻500.png`（任一張即可），按住 `DONATE_HOLD_SECONDS` 秒（預設 5 秒）
+5. 放開後等待 `DONATE_AFTER_HOLD_DELAY` 秒，再連按 `DONATE_ESC_COUNT` 次 `ESC`（預設 4 次，間隔 `DONATE_ESC_INTERVAL` 秒）離開
+
+任何步驟在 `DONATE_STEP_TIMEOUT` 秒（預設 2 秒）內偵測不到需要的圖片，都會按 `ESC` 並結束捐獻序列；中途結束也會重新計時，下次同樣等滿間隔。到期時若其他序列正在執行，會在該序列結束後的第一個空檔補做，不會被跳過。
+
 ## 偵測優先順序
 
 每一輪主迴圈的順序如下：
@@ -165,13 +181,14 @@ python DailyWork.py --console
 3. 治療序列
 4. 採集序列
 5. 狩獵金幣小殭屍序列
-6. 一般圖片點擊
+6. 同盟捐獻序列
+7. 一般圖片點擊
 
-集結、治療、採集、狩獵序列執行期間不會進行其他偵測；序列結束後進入下一輪主迴圈。
+集結、治療、採集、狩獵、捐獻序列執行期間不會進行其他偵測；序列結束後進入下一輪主迴圈。
 
 ## 圖片模板
 
-所有模板圖片都放在 `icon/`。如果遊戲 UI 有更新、解析度改變或辨識不穩，優先更新對應圖片。
+所有模板圖片都放在 `icon/`，依用途分在子資料夾（例如 `icon/集結序列/`、`icon/共用/`）。如果遊戲 UI 有更新、解析度改變或辨識不穩，優先更新對應圖片。
 
 新增或替換模板時，請保持檔名與 `DailyWork.py` 內設定一致。
 
@@ -183,7 +200,10 @@ python DailyWork.py --console
 - `INDIVIDUAL_COOLDOWN`：一般圖片點擊冷卻
 - `SEQUENCE_POLLING_INTERVAL` / `SEQUENCE_AFTER_CLICK_DELAY`：序列內偵測頻率與每次點擊後緩衝
 - `BASE_CHECK_INTERVAL` / `BASE_MISSING_LIMIT`：基地監測頻率與容錯次數
+- `RALLY_ENTRY_DELAY` / `RALLY_SEQUENCE_COOLDOWN` / `RALLY_SEQUENCE_TIMEOUT`：集結進入前的確認延遲、序列結束後冷卻與整體逾時
 - `GATHER_CHECK_INTERVAL` / `GATHER_STEP_TIMEOUT` / `GATHER_SLOW_STEP_TIMEOUT`：採集檢查間隔、一般步驟逾時與慢換頁步驟逾時
 - `GATHER_FAST_STEP_DELAY` / `GATHER_SLOW_STEP_DELAY` / `GATHER_QUANTITY_CLICK_RATIO`：採集序列點擊後緩衝與減號/加號點擊比例
 - `HUNT_CHECK_INTERVAL` / `HUNT_STEP_TIMEOUT` / `HUNT_EVENT_MIDPOINT_TIMEOUT`：狩獵金幣小殭屍檢查間隔、一般步驟逾時與特殊事件/每日任務中心點逾時
 - `HUNT_SCROLL_STEPS` / `HUNT_SCROLL_INTERVAL`：狩獵序列縮小滾輪段數與每段間隔
+- `DONATE_INTERVAL` / `DONATE_STEP_TIMEOUT` / `DONATE_HOLD_SECONDS`：捐獻間隔、每步驟逾時與按住捐獻的秒數
+- `DONATE_AFTER_HOLD_DELAY` / `DONATE_ESC_COUNT` / `DONATE_ESC_INTERVAL`：放開捐獻後的等待、結束時按 ESC 的次數與間隔

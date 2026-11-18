@@ -25,10 +25,10 @@ if errorlevel 1 ( echo 安裝 requirements.txt 失敗。 & pause & exit /b 1 )
 %PYTHON_CMD% -m pip install --upgrade pyinstaller
 if errorlevel 1 ( echo 安裝 pyinstaller 失敗。 & pause & exit /b 1 )
 
-rem ===== 建置單一 exe（icon 內嵌、保留主控台視窗方便看 log / 按 Ctrl+C 停止）=====
+rem ===== 建置單一 exe（icon 內嵌、不開命令視窗，執行紀錄顯示在操作介面下方）=====
 rem --add-data "來源;exe內路徑"：把整個 icon 資料夾打包進 exe，發佈時免帶 icon。
 echo 開始建置 DailyWork.exe ...
-%PYTHON_CMD% -m PyInstaller --noconfirm --onefile --console --name DailyWork --add-data "icon;icon" DailyWork.py
+%PYTHON_CMD% -m PyInstaller --noconfirm --onefile --noconsole --name DailyWork --add-data "icon;icon" DailyWork.py
 if errorlevel 1 ( echo 建置失敗。 & pause & exit /b 1 )
 
 echo.
