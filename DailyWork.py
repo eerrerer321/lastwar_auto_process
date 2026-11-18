@@ -5,6 +5,7 @@ import pyautogui
 import time
 import random
 import sys
+import threading
 from pathlib import Path
 
 # 關閉 PyAutoGUI 角落緊急停止機制（避免滑鼠路徑經過 (0,0) 時被誤觸停止）
@@ -53,8 +54,8 @@ ENABLE_HELP_DETECTION = True
 ENABLE_EXIT_GAME_DETECTION = True
 ENABLE_RALLY_SEQUENCE = True
 ENABLE_HEAL_SEQUENCE = True
-ENABLE_GATHER_SEQUENCE = True
-ENABLE_HUNT_ZOMBIE_SEQUENCE = True
+ENABLE_GATHER_SEQUENCE = False
+ENABLE_HUNT_ZOMBIE_SEQUENCE = False
 ENABLE_BASE_MONITORING = True
 ENABLE_DONATE_SEQUENCE = True
 
@@ -99,7 +100,7 @@ RALLY_BACK_IMAGE = _icon_path('集結序列', '返回.png')
 RALLY_SEQUENCE_COOLDOWN = 10.0
 
 # 集結序列進入前延遲：初次偵測到集結提醒後，等待 N 秒再確認仍存在才進入序列
-RALLY_ENTRY_DELAY = 3.0
+RALLY_ENTRY_DELAY = 0.3
 
 # 集結序列硬性超時：序列若未透過正常路徑結束，超過 N 秒強制中止
 RALLY_SEQUENCE_TIMEOUT = 8.0
@@ -164,6 +165,7 @@ DONATE_ALLIANCE_IMAGE = _icon_path('同盟捐獻序列', '同盟.png')
 DONATE_ALLIANCE_TECH_IMAGE = _icon_path('同盟捐獻序列', '同盟科技.png')
 DONATE_RECOMMEND_TECH_IMAGE = _icon_path('同盟捐獻序列', '推薦科技.png')
 DONATE_BUTTON_IMAGE = _icon_path('同盟捐獻序列', '捐獻.png')
+DONATE_BUTTON_500_IMAGE = _icon_path('同盟捐獻序列', '捐獻500.png')
 
 # 同盟捐獻序列配置：每 DONATE_INTERVAL 秒執行一次。
 # 這裡採用「到期就標記為待執行，直到真的執行完才清除」的方式排隊：主迴圈每一輪
@@ -250,10 +252,28 @@ IMAGE_ROIS = {
     # 實測位置 (596,266)-(785,587)，±500px（推薦科技的位置可能變動較大，緩衝放寬到
     # ±500；等於畫面上半部幾乎整塊，加速倍率因此有限，但比全畫面仍快）
     DONATE_RECOMMEND_TECH_IMAGE: {"top": 0, "left": 96, "width": 1189, "height": 1080},
-    # 實測位置 (893,763)-(1001,797)，±200px
+    # 實測位置 (893,763)-(1001,797)，±200px（捐獻 / 捐獻500 共用同一區域）
     DONATE_BUTTON_IMAGE: {"top": 563, "left": 693, "width": 508, "height": 434},
+    DONATE_BUTTON_500_IMAGE: {"top": 563, "left": 693, "width": 508, "height": 434},
 }
 # ===========================================
+
+
+STOP_EVENT = threading.Event()
+
+
+class AutomationStopped(Exception):
+    """使用者要求停止目前執行。"""
+
+
+def _check_stopped():
+    if STOP_EVENT.is_set():
+        raise AutomationStopped()
+
+
+def _sleep(seconds):
+    if STOP_EVENT.wait(seconds):
+        raise AutomationStopped()
 
 
 def _imread_unicode(path):
@@ -268,6 +288,7 @@ def _imread_unicode(path):
 
 
 def _load_template(path):
+    _check_stopped()
     img = _imread_unicode(path)
     if img is None:
         print(f"【警告】找不到圖片檔案: {path}")
@@ -303,12 +324,14 @@ def _load_template(path):
 
 
 def _grab_frame(sct):
+    _check_stopped()
     screenshot = sct.grab(MONITOR_REGION)
     frame = np.array(screenshot)
     return cv2.cvtColor(frame, cv2.COLOR_BGRA2BGR)
 
 
 def _click_template(t, max_loc, matched_variant):
+    _check_stopped()
     if matched_variant is None:
         return
     if CLICK_MODE == 'center':
@@ -333,14 +356,18 @@ def _hold_template(t, max_loc, matched_variant, hold_seconds):
     final_x = target_x + random.randint(-3, 3)
     final_y = target_y + random.randint(-3, 3)
     pyautogui.moveTo(final_x, final_y)
+    _check_stopped()
     pyautogui.mouseDown()
-    time.sleep(hold_seconds)
-    pyautogui.mouseUp()
+    try:
+        _sleep(hold_seconds)
+    finally:
+        pyautogui.mouseUp()
     pyautogui.moveTo(10, 10)
     t['last_clicked'] = time.time()
 
 
 def _match(frame, t):
+    _check_stopped()
     # 灰階模板需要單通道畫面；呼叫端一律傳 BGR，這裡就地轉換（約 1ms），
     # 讓所有呼叫端不必關心自己手上的圖是哪種模板要用的。
     if t['gray'] and frame.ndim == 3:
@@ -375,8 +402,10 @@ def _match(frame, t):
     return best_val, (best_loc[0] + offset_x, best_loc[1] + offset_y), best_variant
 
 
-def _detect_and_click_within(sct, t, timeout, after_click_delay=SEQUENCE_AFTER_CLICK_DELAY):
+def _detect_and_click_within(sct, t, timeout, after_click_delay=None):
     """在 timeout 秒內持續偵測 t，偵測到就立即點擊；回傳是否點擊成功。"""
+    if after_click_delay is None:
+        after_click_delay = SEQUENCE_AFTER_CLICK_DELAY
     start = time.time()
     while time.time() - start < timeout:
         frame = _grab_frame(sct)
@@ -384,9 +413,9 @@ def _detect_and_click_within(sct, t, timeout, after_click_delay=SEQUENCE_AFTER_C
         if max_val >= THRESHOLD:
             print(f"✅ {t['name']} 偵測到 (匹配度: {max_val:.2f})")
             _click_template(t, max_loc, matched_variant)
-            time.sleep(after_click_delay)
+            _sleep(after_click_delay)
             return True
-        time.sleep(SEQUENCE_POLLING_INTERVAL)
+        _sleep(SEQUENCE_POLLING_INTERVAL)
     return False
 
 
@@ -405,7 +434,7 @@ def _fallback_press_back(sct, back_t, total_seconds=2):
             print(f"✅ {back_t['name']} 偵測到 (匹配度: {max_val:.2f})")
             _click_template(back_t, max_loc, matched_variant)
             clicked = True
-        time.sleep(SEQUENCE_POLLING_INTERVAL)
+        _sleep(SEQUENCE_POLLING_INTERVAL)
     return clicked
 
 
@@ -481,9 +510,9 @@ def _run_gather_sequence(sct, find_t, select_t, gold_t, minus_t, plus_t, search_
                 print(f"✅ 減號/加號偵測到 (匹配度: {minus_val:.2f}/{plus_val:.2f})")
                 pyautogui.click(target_x, target_y)
                 pyautogui.moveTo(10, 10)
-                time.sleep(GATHER_FAST_STEP_DELAY)
+                _sleep(GATHER_FAST_STEP_DELAY)
                 return True
-            time.sleep(SEQUENCE_POLLING_INTERVAL)
+            _sleep(SEQUENCE_POLLING_INTERVAL)
         return _abort(f"{_seconds_label(GATHER_STEP_TIMEOUT)}內未同時偵測到 {minus_t['name']} 與 {plus_t['name']}")
 
     def _click_idle_squad(timeout=GATHER_SLOW_STEP_TIMEOUT):
@@ -495,14 +524,14 @@ def _run_gather_sequence(sct, find_t, select_t, gold_t, minus_t, plus_t, search_
             if squad3_val >= THRESHOLD:
                 print(f"✅ {squad3_t['name']} 偵測到 (匹配度: {squad3_val:.2f})")
                 _click_template(squad3_t, squad3_loc, squad3_variant)
-                time.sleep(GATHER_FAST_STEP_DELAY)
+                _sleep(GATHER_FAST_STEP_DELAY)
                 return True
             if squad2_val >= THRESHOLD:
                 print(f"✅ {squad2_t['name']} 偵測到 (匹配度: {squad2_val:.2f})")
                 _click_template(squad2_t, squad2_loc, squad2_variant)
-                time.sleep(GATHER_FAST_STEP_DELAY)
+                _sleep(GATHER_FAST_STEP_DELAY)
                 return True
-            time.sleep(SEQUENCE_POLLING_INTERVAL)
+            _sleep(SEQUENCE_POLLING_INTERVAL)
         return _abort(f"{_seconds_label(timeout)}內未偵測到 {squad3_t['name']} 或 {squad2_t['name']}")
 
     print("=== 進入採集序列 ===")
@@ -562,9 +591,9 @@ def _run_hunt_zombie_sequence(sct, base_t, world_t, zoomed_zombie_t, world_base_
                 print(f"✅ 特殊事件/每日任務偵測到 (匹配度: {special_val:.2f}/{daily_val:.2f})，點擊中心連線 50% 位置")
                 pyautogui.click(target_x, target_y)
                 pyautogui.moveTo(10, 10)
-                time.sleep(SEQUENCE_AFTER_CLICK_DELAY)
+                _sleep(SEQUENCE_AFTER_CLICK_DELAY)
                 return True
-            time.sleep(SEQUENCE_POLLING_INTERVAL)
+            _sleep(SEQUENCE_POLLING_INTERVAL)
         return _abort(f"{HUNT_EVENT_MIDPOINT_TIMEOUT:.0f} 秒內未同時偵測到 {special_event_t['name']} 與 {daily_task_t['name']}")
 
     def _click_optional_idle_squad():
@@ -580,9 +609,9 @@ def _run_hunt_zombie_sequence(sct, base_t, world_t, zoomed_zombie_t, world_base_
                 if max_val >= THRESHOLD:
                     print(f"✅ {idle_t['name']} 偵測到 (匹配度: {max_val:.2f})")
                     _click_template(idle_t, max_loc, matched_variant)
-                    time.sleep(SEQUENCE_AFTER_CLICK_DELAY)
+                    _sleep(SEQUENCE_AFTER_CLICK_DELAY)
                     return
-            time.sleep(SEQUENCE_POLLING_INTERVAL)
+            _sleep(SEQUENCE_POLLING_INTERVAL)
 
         print("ℹ️ 2 秒內未偵測到閒置三隊或閒置二隊，跳過狩獵出征前隊伍選擇")
 
@@ -592,7 +621,7 @@ def _run_hunt_zombie_sequence(sct, base_t, world_t, zoomed_zombie_t, world_base_
         pyautogui.moveTo(target_x, target_y)
         for _ in range(HUNT_SCROLL_STEPS):
             pyautogui.scroll(-1)
-            time.sleep(HUNT_SCROLL_INTERVAL)
+            _sleep(HUNT_SCROLL_INTERVAL)
 
     print("=== 進入狩獵金幣小殭屍序列 ===")
 
@@ -642,7 +671,7 @@ def _run_heal_sequence(sct, start_t, confirm_t, lookforhelp_t, start_loc, start_
     if not _expired() and _detect_and_click_within(sct, confirm_t, timeout=2):
         # 步驟 3：2 秒內偵測 lookforhelp
         if not _expired():
-            time.sleep(0.5)
+            _sleep(0.5)
             _detect_and_click_within(sct, lookforhelp_t, timeout=2)
 
     if _expired():
@@ -663,16 +692,37 @@ def _detect_and_hold_within(sct, t, timeout, hold_seconds):
             print(f"✅ {t['name']} 偵測到 (匹配度: {max_val:.2f})，按住 {hold_seconds:.0f} 秒")
             _hold_template(t, max_loc, matched_variant, hold_seconds)
             return True
-        time.sleep(SEQUENCE_POLLING_INTERVAL)
+        _sleep(SEQUENCE_POLLING_INTERVAL)
     return False
 
 
-def _run_donate_sequence(sct, alliance_t, tech_t, recommend_t, donate_t):
+def _detect_and_hold_any_within(sct, templates, timeout, hold_seconds):
+    """在 timeout 秒內持續偵測 templates 中任一模板，命中就按住 hold_seconds 秒後放開；回傳是否執行成功。"""
+    start = time.time()
+    while time.time() - start < timeout:
+        frame = _grab_frame(sct)
+        for t in templates:
+            max_val, max_loc, matched_variant = _match(frame, t)
+            if max_val >= THRESHOLD:
+                print(f"✅ {t['name']} 偵測到 (匹配度: {max_val:.2f})，按住 {hold_seconds:.0f} 秒")
+                _hold_template(t, max_loc, matched_variant, hold_seconds)
+                return True
+        _sleep(SEQUENCE_POLLING_INTERVAL)
+    return False
+
+
+def _run_donate_sequence(sct, alliance_t, tech_t, recommend_t, donate_ts):
     """同盟捐獻序列：同盟 → 同盟科技 → 推薦科技 → 按住捐獻 5 秒 → 連按 4 下 ESC。
 
-    任一前三步驟在 DONATE_STEP_TIMEOUT 內偵測不到就按 ESC 中止；捐獻按鈕偵測不到
+    捐獻按鈕支援二擇一：捐獻.png / 捐獻500.png 任一匹配即按住。
+    任一前三步驟在 DONATE_STEP_TIMEOUT 內偵測不到就按 ESC 中止；捐獻按鈕皆偵測不到
     同樣中止（此時尚未按下滑鼠，不需要額外收尾）。
     """
+    # 相容舊呼叫：若傳入單一 template 則包成 list
+    if not isinstance(donate_ts, (list, tuple)):
+        donate_ts = [donate_ts]
+    donate_ts = [t for t in donate_ts if t is not None]
+    donate_names = " / ".join(str(t['name']) for t in donate_ts) if donate_ts else "捐獻按鈕"
 
     def _abort(message):
         print(f"⚠️ {message}，按 ESC 結束同盟捐獻序列")
@@ -689,15 +739,18 @@ def _run_donate_sequence(sct, alliance_t, tech_t, recommend_t, donate_t):
     if not _detect_and_click_within(sct, recommend_t, timeout=DONATE_STEP_TIMEOUT):
         _abort(f"{DONATE_STEP_TIMEOUT:.0f} 秒內未偵測到 {recommend_t['name']}")
         return
-    if not _detect_and_hold_within(sct, donate_t, timeout=DONATE_STEP_TIMEOUT, hold_seconds=DONATE_HOLD_SECONDS):
-        _abort(f"{DONATE_STEP_TIMEOUT:.0f} 秒內未偵測到 {donate_t['name']}")
+    if not donate_ts:
+        _abort(f"{DONATE_STEP_TIMEOUT:.0f} 秒內未偵測到 {donate_names}（模板未載入）")
+        return
+    if not _detect_and_hold_any_within(sct, donate_ts, timeout=DONATE_STEP_TIMEOUT, hold_seconds=DONATE_HOLD_SECONDS):
+        _abort(f"{DONATE_STEP_TIMEOUT:.0f} 秒內未偵測到 {donate_names}")
         return
 
-    time.sleep(DONATE_AFTER_HOLD_DELAY)
+    _sleep(DONATE_AFTER_HOLD_DELAY)
     for i in range(DONATE_ESC_COUNT):
         pyautogui.press('esc')
         if i < DONATE_ESC_COUNT - 1:
-            time.sleep(DONATE_ESC_INTERVAL)
+            _sleep(DONATE_ESC_INTERVAL)
 
     print(f"=== 同盟捐獻序列結束（下次約 {DONATE_INTERVAL / 3600:.0f} 小時後）===")
 
@@ -816,19 +869,22 @@ def solve_screen_detection():
         rally_confirm,
     ))
 
-    # 載入同盟捐獻序列圖片
+    # 載入同盟捐獻序列圖片（捐獻按鈕二擇一：捐獻.png / 捐獻500.png）
     donate_alliance = None
     donate_tech = None
     donate_recommend = None
     donate_button = None
+    donate_button_500 = None
     if ENABLE_DONATE_SEQUENCE:
         donate_alliance = _load_template(DONATE_ALLIANCE_IMAGE)
         donate_tech = _load_template(DONATE_ALLIANCE_TECH_IMAGE)
         donate_recommend = _load_template(DONATE_RECOMMEND_TECH_IMAGE)
         donate_button = _load_template(DONATE_BUTTON_IMAGE)
+        donate_button_500 = _load_template(DONATE_BUTTON_500_IMAGE)
+    donate_button_ts = [t for t in (donate_button, donate_button_500) if t is not None]
     donate_ready = ENABLE_DONATE_SEQUENCE and all(x is not None for x in (
-        donate_alliance, donate_tech, donate_recommend, donate_button,
-    ))
+        donate_alliance, donate_tech, donate_recommend,
+    )) and len(donate_button_ts) > 0
 
     print(f"--- 獨立冷卻模式啟動 ---")
     print(f"每張圖片獨立冷卻: {INDIVIDUAL_COOLDOWN} 秒")
@@ -894,6 +950,7 @@ def solve_screen_detection():
 
     with mss.mss() as sct:
         while True:
+            _check_stopped()
             current_time = time.time()  # 取得當前系統時間
 
             # 1. 擷取螢幕
@@ -926,7 +983,7 @@ def solve_screen_detection():
                 max_val, _, _ = _match(rally_frame, rally_notify)
                 if max_val >= THRESHOLD:
                     print(f"✅ 偵測到 {rally_notify['name']} (匹配度: {max_val:.2f})，等待 {RALLY_ENTRY_DELAY:.0f} 秒後再次確認")
-                    time.sleep(RALLY_ENTRY_DELAY)
+                    _sleep(RALLY_ENTRY_DELAY)
                     frame2 = _grab_frame(sct)
                     max_val2, max_loc2, matched_variant2 = _match(frame2, rally_notify)
                     if max_val2 >= THRESHOLD:
@@ -941,7 +998,7 @@ def solve_screen_detection():
             if heal_ready and current_time - heal_start['last_clicked'] >= HEAL_SEQUENCE_COOLDOWN:
                 max_val, _, _ = _match(frame, heal_start)
                 if max_val >= THRESHOLD:
-                    time.sleep(0.1)
+                    _sleep(0.1)
                     frame2 = _grab_frame(sct)
                     max_val2, max_loc2, matched_variant2 = _match(frame2, heal_start)
                     if max_val2 >= THRESHOLD:
@@ -979,7 +1036,7 @@ def solve_screen_detection():
                 last_hunt_check = current_time
                 max_val, _, _ = _match(frame, hunt_stamina)
                 if max_val >= THRESHOLD:
-                    time.sleep(0.1)
+                    _sleep(0.1)
                     frame2 = _grab_frame(sct)
                     max_val2, max_loc2, matched_variant2 = _match(frame2, hunt_stamina)
                     if max_val2 >= THRESHOLD:
@@ -1005,7 +1062,7 @@ def solve_screen_detection():
             #     優先序更高的序列搶走（各自 continue），到期狀態會留到下一輪，
             #     在目前序列結束後的第一個空檔補做，不會被跳過。
             if donate_ready and current_time - last_donate_run >= DONATE_INTERVAL:
-                _run_donate_sequence(sct, donate_alliance, donate_tech, donate_recommend, donate_button)
+                _run_donate_sequence(sct, donate_alliance, donate_tech, donate_recommend, donate_button_ts)
                 last_donate_run = time.time()
                 continue
 
@@ -1019,7 +1076,7 @@ def solve_screen_detection():
 
                 if max_val >= THRESHOLD:
                     # 二次確認機制：短暫等待後再次檢測，避免誤判
-                    time.sleep(0.1)
+                    _sleep(0.1)
 
                     # 重新擷取螢幕並進行第二次匹配
                     screenshot2 = sct.grab(MONITOR_REGION)
@@ -1033,15 +1090,19 @@ def solve_screen_detection():
                         print(f"✅ {t['name']} 二次確認成功 (匹配度: {max_val:.2f} -> {max_val2:.2f})")
                         _click_template(t, max_loc2, matched_variant2)
 
-                        time.sleep(0.1)  # 點擊後短暫等待，避免連續點擊過快
+                        _sleep(0.1)  # 點擊後短暫等待，避免連續點擊過快
                     else:
                         print(f"⚠️ {t['name']} 二次確認失敗 (首次: {max_val:.2f}, 二次: {max_val2:.2f})") 
             
             # 降低 CPU 負擔
-            time.sleep(1)   # 每次迴圈結束後等待 3 秒，這樣每張圖的冷卻時間就不會被過度觸發
+            _sleep(1)   # 每次迴圈結束後等待 3 秒，這樣每張圖的冷卻時間就不會被過度觸發
 
 if __name__ == "__main__":
     try:
-        solve_screen_detection()
+        if '--console' in sys.argv:
+            solve_screen_detection()
+        else:
+            from dailywork_gui import run_gui
+            run_gui(sys.modules[__name__])
     except KeyboardInterrupt:
         print("\n--- 腳本已停止 ---")

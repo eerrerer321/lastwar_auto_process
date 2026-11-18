@@ -28,13 +28,28 @@ python -m pip install -r requirements.txt
 start_dailywork.bat --check
 ```
 
-啟動自動化：
+開啟操作視窗：
 
 ```bat
 start_dailywork.bat
 ```
 
-執行期間要停止程式，請在命令視窗按 `Ctrl+C`。
+1. 勾選要啟用的功能（包含集結、幫助盟友、治療、採集、狩獵、捐獻與基地監測）。
+2. 在參數分頁手動填入數值；時間單位皆為秒，擷取範圍單位為像素。
+3. 按「執行」，操作視窗會自動最小化到 Windows 工作列。
+4. 要停止時，從工作列還原視窗，按「停止」。關閉操作視窗也會先停止腳本。
+
+執行期間設定會鎖定，停止後可修改並重新執行。錯誤輸入會在執行前提示；執行紀錄顯示於視窗下方。
+按「儲存為預設」會先驗證所有參數，再把功能開關與參數存到程式旁的 `dailywork_settings.json`（打包成 exe 時存在 exe 旁），之後開啟視窗會自動載入；沒有存過或檔案損毀時使用 `DailyWork.py` 的預設值。要恢復程式預設，刪除該檔即可。畫面範圍可在「畫面」分頁調整，但既有圖片 ROI 仍採螢幕絕對座標。
+介面使用 Python 內建 Tkinter，不需新增 pip 套件。原有批次檔的命令視窗仍會保留。
+
+若要使用原本無操作介面的模式：
+
+```bat
+python DailyWork.py --console
+```
+
+命令列模式可按 `Ctrl+C` 停止。已有的 `dist/DailyWork.exe` 必須重新建置才會包含新介面。
 
 > 注意：程式已關閉 PyAutoGUI 的滑鼠角落緊急停止機制，避免滑鼠經過螢幕左上角時誤停。
 
@@ -44,7 +59,7 @@ start_dailywork.bat
 
 ## 功能開關
 
-功能開關集中在 `DailyWork.py` 頂端。Python 布林值請使用 `True` / `False`。
+操作視窗可直接勾選功能；預設開關集中在 `DailyWork.py` 頂端。Python 布林值請使用 `True` / `False`。
 
 - `ENABLE_TAKEMYHEAL_DETECTION`：啟用 `takemyheal.png` 普通偵測
 - `ENABLE_TAKEMYHEAL8LV_DETECTION`：啟用 `takemyheal8lv.png` 普通偵測
@@ -55,6 +70,7 @@ start_dailywork.bat
 - `ENABLE_GATHER_SEQUENCE`：啟用採集序列
 - `ENABLE_HUNT_ZOMBIE_SEQUENCE`：啟用狩獵金幣小殭屍序列
 - `ENABLE_BASE_MONITORING`：啟用基地監測
+- `ENABLE_DONATE_SEQUENCE`：啟用同盟捐獻序列
 
 ### 一般圖片點擊
 
