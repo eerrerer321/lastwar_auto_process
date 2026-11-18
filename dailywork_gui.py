@@ -191,11 +191,11 @@ STATUS_TONES = {
     'fail': ('#2D1416', '#FF7B72'),
 }
 UI_FONT = 'Microsoft JhengHei UI'
-LOG_FONT = ('Cascadia Mono', -13)
+LOG_FONT = (UI_FONT, -17, 'bold')  # 紀錄多為中文，用等寬字型時中文會落到細明體類的後備字型。
 
 
-def _font(size, weight='normal'):
-    return (UI_FONT, -size, weight)  # 負數為像素，與繪製的圖片同比例縮放。
+def _font(size):
+    return (UI_FONT, -size, 'bold')  # 全介面粗體；負數為像素，與繪製的圖片同比例縮放。
 
 
 def _rgb(color):
@@ -291,32 +291,32 @@ def _build_theme(root):
     def wrapped(inner):
         return lambda name: [(name, {'sticky': 'nsew', 'children': inner})]
 
-    style.configure('.', background=C['bg'], foreground=C['text'], font=_font(14), borderwidth=0)
+    style.configure('.', background=C['bg'], foreground=C['text'], font=_font(19), borderwidth=0)
     style.configure('App.TFrame', background=C['bg'])
     style.configure('Surface.TFrame', background=C['card'])
     style.configure('ConsoleSurface.TFrame', background=C['console'])
     for name, background, foreground, font in (
-        ('Title', C['bg'], C['text'], _font(21, 'bold')),
-        ('Subtitle', C['bg'], C['muted'], _font(13)),
-        ('Footer', C['bg'], C['muted'], _font(12)),
-        ('Section', C['card'], C['text'], _font(14, 'bold')),
-        ('FieldName', C['card'], C['soft'], _font(13)),
-        ('Hint', C['card'], C['muted'], _font(12)),
-        ('ConsoleTitle', C['console'], C['text'], _font(13, 'bold')),
-        ('ConsoleHint', C['console'], C['muted'], _font(12)),
-        ('Note', C['note'], '#AEB6C2', _font(13)),
+        ('Title', C['bg'], C['text'], _font(26)),
+        ('Subtitle', C['bg'], C['muted'], _font(16)),
+        ('Footer', C['bg'], C['muted'], _font(16)),
+        ('Section', C['card'], C['text'], _font(20)),
+        ('FieldName', C['card'], C['soft'], _font(19)),
+        ('Hint', C['card'], C['muted'], _font(16)),
+        ('ConsoleTitle', C['console'], C['text'], _font(18)),
+        ('ConsoleHint', C['console'], C['muted'], _font(16)),
+        ('Note', C['note'], '#AEB6C2', _font(17)),
     ):
         style.configure(f'{name}.TLabel', background=background, foreground=foreground, font=font)
     for name, color in (('muted', C['muted']), ('ok', C['ok']), ('warn', C['warn'])):
-        style.configure(f'{name}.Notice.TLabel', background=C['bg'], foreground=color, font=_font(12))
+        style.configure(f'{name}.Notice.TLabel', background=C['bg'], foreground=color, font=_font(16))
 
     # 圓角容器：卡片、紀錄區、分頁列、提示框。
     for name, size, radius, background, fill, line, border in (
-        ('Card', 32, 12, C['bg'], C['card'], C['line'], 13),
-        ('Console', 32, 12, C['bg'], C['console'], C['line'], 13),
-        ('Nav', 24, 9, C['card'], C['field'], C['nav_line'], 10),
-        ('SegBox', 22, 8, C['card'], C['field'], C['field_line'], 9),
-        ('NoteBox', 22, 8, C['card'], C['note'], C['line'], 9),
+        ('Card', 36, 14, C['bg'], C['card'], C['line'], 15),
+        ('Console', 36, 14, C['bg'], C['console'], C['line'], 15),
+        ('Nav', 26, 10, C['card'], C['field'], C['nav_line'], 11),
+        ('SegBox', 24, 9, C['card'], C['field'], C['field_line'], 10),
+        ('NoteBox', 24, 9, C['card'], C['note'], C['line'], 10),
     ):
         element(f'{name}.bg', border, image(name, size, size, background, _box(0, 0, size, size, radius, fill, line)))
         style.layout(f'{name}.TFrame', [(f'{name}.bg', {'sticky': 'nsew'})])
@@ -325,12 +325,12 @@ def _build_theme(root):
 
     # 狀態膠囊與計數小標。
     for tone, (fill, foreground) in STATUS_TONES.items():
-        element(f'{tone}.Pill.bg', (12, 11), image(f'pill_{tone}', 30, 24, C['bg'], _box(0, 0, 30, 24, 12, fill)))
+        element(f'{tone}.Pill.bg', (14, 13), image(f'pill_{tone}', 36, 28, C['bg'], _box(0, 0, 36, 28, 14, fill)))
         style.layout(f'{tone}.Pill.TLabel', label_layout(f'{tone}.Pill.bg'))
-        style.configure(f'{tone}.Pill.TLabel', foreground=foreground, font=_font(12, 'bold'), padding=(11, 3))
-    element('Chip.bg', (11, 10), image('chip', 28, 22, C['card'], _box(0, 0, 28, 22, 11, C['chip'])))
+        style.configure(f'{tone}.Pill.TLabel', foreground=foreground, font=_font(16), padding=(12, 3))
+    element('Chip.bg', (13, 12), image('chip', 32, 26, C['card'], _box(0, 0, 32, 26, 13, C['chip'])))
     style.layout('Chip.TLabel', label_layout('Chip.bg'))
-    style.configure('Chip.TLabel', foreground='#A3ABB9', font=_font(12), padding=(10, 2))
+    style.configure('Chip.TLabel', foreground='#A3ABB9', font=_font(16), padding=(11, 2))
 
     # 按鈕：主要（執行）、危險（停止）、次要（儲存為預設）。
     button_layout = wrapped([('Button.padding', {'sticky': 'nsew', 'children': [('Button.label', {'sticky': 'nsew'})]})])
@@ -342,43 +342,43 @@ def _build_theme(root):
         ('Ghost', (C['bg'], C['field_line']), (C['hover'], '#3A414E'), ('#13161C', C['field_line']),
          (C['bg'], '#1E232B'), C['text'], C['dim']),
     ):
-        states = [image(f'{name}_{state}', 24, 24, C['bg'], _box(0, 0, 24, 24, 9, *colors))
+        states = [image(f'{name}_{state}', 28, 28, C['bg'], _box(0, 0, 28, 28, 11, *colors))
                   for state, colors in (('normal', normal), ('hover', hover), ('down', down), ('disabled', disabled))]
-        element(f'{name}.bg', 10, states[0], ('disabled', states[3]), ('pressed', states[2]), ('active', states[1]))
+        element(f'{name}.bg', 12, states[0], ('disabled', states[3]), ('pressed', states[2]), ('active', states[1]))
         style.layout(f'{name}.TButton', button_layout(f'{name}.bg'))
-        style.configure(f'{name}.TButton', foreground=foreground, font=_font(14, 'bold'), padding=(18, 9), anchor='center')
+        style.configure(f'{name}.TButton', foreground=foreground, font=_font(19), padding=(16, 7), anchor='center')
         style.map(f'{name}.TButton', foreground=[('disabled', foreground_disabled)])
 
     # 輸入框：一般 / 聚焦 / 停用。
-    field = [image(f'field_{state}', 20, 20, C['card'], _box(0, 0, 20, 20, 8, fill, line))
+    field = [image(f'field_{state}', 24, 24, C['card'], _box(0, 0, 24, 24, 10, fill, line))
              for state, fill, line in (('normal', C['field'], C['field_line']), ('focus', C['field'], C['accent']),
                                        ('disabled', '#12151B', C['nav_line']))]
-    element('Field.bg', 9, field[0], ('disabled', field[2]), ('focus', field[1]))
+    element('Field.bg', 11, field[0], ('disabled', field[2]), ('focus', field[1]))
     style.layout('Field.TEntry', wrapped([('Entry.padding', {'sticky': 'nsew', 'children': [
         ('Entry.textarea', {'sticky': 'nsew'})]})])('Field.bg'))
-    style.configure('Field.TEntry', foreground=C['text'], insertcolor=C['text'], padding=(10, 7),
+    style.configure('Field.TEntry', foreground=C['text'], insertcolor=C['text'], padding=(12, 5),
                     selectbackground=C['accent'], selectforeground=C['on_accent'])
     style.map('Field.TEntry', foreground=[('disabled', C['dim'])])
 
     # 分頁列與點擊位置的分段按鈕（底色同輸入框）。
-    tab_on = image('tab_on', 20, 20, C['field'], _box(0, 0, 20, 20, 7, C['tab_on']))
-    tab_off = image('tab_off', 20, 20, C['field'], [])
-    element('Tab.bg', 8, tab_off, ('selected', tab_on))
+    tab_on = image('tab_on', 24, 24, C['field'], _box(0, 0, 24, 24, 9, C['tab_on']))
+    tab_off = image('tab_off', 24, 24, C['field'], [])
+    element('Tab.bg', 10, tab_off, ('selected', tab_on))
     radio_layout = wrapped([('Radiobutton.padding', {'sticky': 'nsew', 'children': [
         ('Radiobutton.label', {'sticky': ''})]})])
-    for name, padding in (('Tab', (10, 6)), ('Seg', (10, 4))):
+    for name, padding in (('Tab', (8, 5)), ('Seg', (8, 3))):
         style.layout(f'{name}.TRadiobutton', radio_layout('Tab.bg'))
-        style.configure(f'{name}.TRadiobutton', foreground=C['muted'], font=_font(13), padding=padding)
-        style.map(f'{name}.TRadiobutton', font=[('selected', _font(13, 'bold'))], foreground=[
+        style.configure(f'{name}.TRadiobutton', foreground=C['muted'], font=_font(19), padding=padding)
+        style.map(f'{name}.TRadiobutton', foreground=[
             ('disabled', C['dim']), ('selected', '#FFFFFF'), ('active', C['text'])])
 
     # 功能開關列：整列可點、滑過有底色，右側為開關。
-    row = image('row', 20, 20, C['card'], [])
-    row_hover = image('row_hover', 20, 20, C['card'], _box(0, 0, 20, 20, 8, C['hover']))
-    element('Switch.row', 9, row, ('disabled', row), ('active', row_hover))
+    row = image('row', 24, 24, C['card'], [])
+    row_hover = image('row_hover', 24, 24, C['card'], _box(0, 0, 24, 24, 10, C['hover']))
+    element('Switch.row', 11, row, ('disabled', row), ('active', row_hover))
 
     def switch(name, background, track, knob, on):
-        return image(name, 36, 20, background, _box(0, 0, 36, 20, 10, track) + _box(19 if on else 3, 3, 14, 14, 7, knob))
+        return image(name, 46, 26, background, _box(0, 0, 46, 26, 13, track) + _box(23 if on else 3, 3, 20, 20, 10, knob))
 
     dim_on, dim_knob = _mix(C['accent'], C['card'], 0.55), _mix('#FFFFFF', C['card'], 0.55)
     element('Switch.indicator', 0,
@@ -392,7 +392,7 @@ def _build_theme(root):
         ('Switch.indicator', {'side': 'right', 'sticky': ''}),
         ('Checkbutton.label', {'side': 'left', 'sticky': 'w', 'expand': 1}),
     ]})])('Switch.row'))
-    style.configure('Switch.TCheckbutton', foreground=C['text'], font=_font(14), padding=(12, 11))
+    style.configure('Switch.TCheckbutton', foreground=C['text'], font=_font(20), padding=(14, 12))
     style.map('Switch.TCheckbutton', foreground=[('disabled', C['dim'])])
 
     # 紀錄區捲軸：無箭頭的細捲軸。
@@ -400,16 +400,17 @@ def _build_theme(root):
         ('Vertical.Scrollbar.thumb', {'expand': 1, 'sticky': 'nsew'})]})])
     style.configure('Log.Vertical.TScrollbar', troughcolor=C['console'], background=C['field_line'],
                     bordercolor=C['console'], lightcolor=C['field_line'], darkcolor=C['field_line'],
-                    gripcount=0, arrowsize=8)
+                    gripcount=0, arrowsize=10)
     style.map('Log.Vertical.TScrollbar', background=[('active', '#3A414E')],
               lightcolor=[('active', '#3A414E')], darkcolor=[('active', '#3A414E')])
 
-    # 標題旁的準星圖示。
-    c, dark, accent = 21, C['on_accent'], C['accent']
-    image('logo', 42, 42, C['bg'], _box(0, 0, 42, 42, 11, accent) + _box(c - 7.3, c - 7.3, 14.6, 14.6, 7.3, dark)
-          + _box(c - 5.5, c - 5.5, 11, 11, 5.5, accent) + _box(c - 0.9, 10.9, 1.8, 5.5, 0.9, dark)
-          + _box(c - 0.9, 25.6, 1.8, 5.5, 0.9, dark) + _box(10.9, c - 0.9, 5.5, 1.8, 0.9, dark)
-          + _box(25.6, c - 0.9, 5.5, 1.8, 0.9, dark) + _box(c - 1.5, c - 1.5, 3, 3, 1.5, dark))
+    # 標題旁的準星圖示：以 42px 設計，等比放大到 46px 配合標題字級。
+    k, dark, accent = 46 / 42, C['on_accent'], C['accent']
+    shapes = ((0, 0, 42, 42, 11, accent), (13.7, 13.7, 14.6, 14.6, 7.3, dark), (15.5, 15.5, 11, 11, 5.5, accent),
+              (20.1, 10.9, 1.8, 5.5, 0.9, dark), (20.1, 25.6, 1.8, 5.5, 0.9, dark), (10.9, 20.1, 5.5, 1.8, 0.9, dark),
+              (25.6, 20.1, 5.5, 1.8, 0.9, dark), (19.5, 19.5, 3, 3, 1.5, dark))
+    image('logo', 46, 46, C['bg'], [layer for x, y, w, h, r, color in shapes
+                                    for layer in _box(x * k, y * k, w * k, h * k, r * k, color)])
     return images
 
 
@@ -439,7 +440,7 @@ class DailyWorkWindow:
         self.pages = {}
         root.title('LastWar 日常自動化')
         root.geometry('1000x760')
-        root.minsize(900, 700)
+        root.minsize(980, 740)
         root.configure(bg=C['bg'])
         root.protocol('WM_DELETE_WINDOW', self.close)
         self.images = _build_theme(root)
@@ -454,7 +455,7 @@ class DailyWorkWindow:
             notice = ('設定檔無法讀取，已改用程式預設值', 'warn')
             self.messages.put_nowait(f'{error}\n')
 
-        body = ttk.Frame(root, padding=(24, 20, 24, 16), style='App.TFrame')
+        body = ttk.Frame(root, padding=(18, 12, 18, 10), style='App.TFrame')
         body.pack(fill='both', expand=True)
         body.columnconfigure(1, weight=1)
         body.rowconfigure(1, weight=1)
@@ -467,7 +468,7 @@ class DailyWorkWindow:
         self.build_parameters(right, _section(saved, 'values'), saved.get('click_mode'))
         self.build_log(right)
         footer = ttk.Frame(body, style='App.TFrame')
-        footer.grid(row=2, column=0, columnspan=2, sticky='ew', pady=(14, 0))
+        footer.grid(row=2, column=0, columnspan=2, sticky='ew', pady=(8, 0))
         ttk.Label(footer, text='從工作列還原視窗可按「停止」；關閉視窗也會停止。', style='Footer.TLabel').pack(side='left')
         self.notice = ttk.Label(footer)
         self.notice.pack(side='right')
@@ -477,30 +478,30 @@ class DailyWorkWindow:
     # ------------------------------------------------------------ 版面 --
     def build_header(self, body):
         header = ttk.Frame(body, style='App.TFrame')
-        header.grid(row=0, column=0, columnspan=2, sticky='ew', pady=(0, 16))
+        header.grid(row=0, column=0, columnspan=2, sticky='ew', pady=(0, 10))
         tk.Label(header, image=self.images['logo'], bg=C['bg'], bd=0).pack(side='left')
         titles = ttk.Frame(header, style='App.TFrame')
-        titles.pack(side='left', fill='x', expand=True, padx=14)
+        titles.pack(side='left', fill='x', expand=True, padx=12)
         title_row = ttk.Frame(titles, style='App.TFrame')
         title_row.pack(anchor='w')
         ttk.Label(title_row, text='LastWar 日常自動化', style='Title.TLabel').pack(side='left')
         self.status = tk.StringVar(self.root)
         self.status_pill = ttk.Label(title_row)
-        self.status_pill.pack(side='left', padx=12)
+        self.status_pill.pack(side='left', padx=10)
         self.set_status('尚未執行', 'idle')
-        ttk.Label(titles, text='勾選功能並調整參數；按執行後會自動縮小到工作列。', style='Subtitle.TLabel').pack(anchor='w', pady=(2, 0))
+        ttk.Label(titles, text='勾選功能並調整參數；按執行後會自動縮小到工作列。', style='Subtitle.TLabel').pack(anchor='w')
         self.start_button = ttk.Button(header, text='▶  執行', style='Accent.TButton', command=self.start)
         self.start_button.pack(side='right')
         self.stop_button = ttk.Button(header, text='■  停止', style='Danger.TButton', command=self.stop, state='disabled')
-        self.stop_button.pack(side='right', padx=10)
+        self.stop_button.pack(side='right', padx=8)
         self.save_button = ttk.Button(header, text='儲存為預設', style='Ghost.TButton', command=self.save)
         self.save_button.pack(side='right')
 
     def build_features(self, body, saved):
-        card = ttk.Frame(body, style='Card.TFrame', padding=(8, 14, 8, 8))
-        card.grid(row=1, column=0, sticky='nsw', padx=(0, 16))
-        card.columnconfigure(0, minsize=284)
-        head = ttk.Frame(card, style='Surface.TFrame', padding=(12, 0, 12, 8))
+        card = ttk.Frame(body, style='Card.TFrame', padding=(6, 12, 6, 6))
+        card.grid(row=1, column=0, sticky='nsw', padx=(0, 12))
+        card.columnconfigure(0, minsize=290)
+        head = ttk.Frame(card, style='Surface.TFrame', padding=(14, 0, 14, 4))
         head.grid(row=0, column=0, sticky='ew')
         ttk.Label(head, text='啟用功能', style='Section.TLabel').pack(side='left')
         self.feature_count = ttk.Label(head, style='Chip.TLabel')
@@ -516,12 +517,11 @@ class DailyWorkWindow:
         self.update_feature_count()
 
     def build_parameters(self, parent, saved, saved_click_mode):
-        card = ttk.Frame(parent, style='Card.TFrame', padding=(20, 16, 20, 8))
+        card = ttk.Frame(parent, style='Card.TFrame', padding=(16, 12, 16, 2))
         card.grid(row=0, column=0, sticky='ew')
         card.columnconfigure(0, weight=1)
-        ttk.Label(card, text='參數設定', style='Section.TLabel').grid(row=0, column=0, sticky='w')
         nav = ttk.Frame(card, style='Nav.TFrame', padding=4)
-        nav.grid(row=1, column=0, sticky='ew', pady=(12, 14))
+        nav.grid(row=1, column=0, sticky='ew', pady=(0, 10))
         self.page = tk.StringVar(self.root, value='一般')
         stack = ttk.Frame(card, style='Surface.TFrame')
         stack.grid(row=2, column=0, sticky='nsew')
@@ -545,12 +545,12 @@ class DailyWorkWindow:
                 cells.append(self.add_entry(page, 'TEMPLATE_SCALES', '模板倍率（逗號分隔）', ', '.join(map(str, scales))))
                 cells.append(self.add_click_mode(page, saved_click_mode))
             for index, cell in enumerate(cells):
-                cell.grid(row=index // 2, column=index % 2, sticky='ew', pady=(0, 12),
-                          padx=(0, 10) if index % 2 == 0 else (10, 0))
+                cell.grid(row=index // 2, column=index % 2, sticky='ew', pady=(0, 8),
+                          padx=(0, 8) if index % 2 == 0 else (8, 0))
             if title == '畫面':
-                note = ttk.Frame(page, style='NoteBox.TFrame', padding=(12, 9))
-                note.grid(row=len(cells), column=0, columnspan=2, sticky='ew', pady=(0, 12))
-                ttk.Label(note, text='ⓘ  既有圖片搜尋區域仍使用螢幕絕對座標；遊戲位置改變時，需另行量測 ROI。',
+                note = ttk.Frame(page, style='NoteBox.TFrame', padding=(12, 7))
+                note.grid(row=len(cells), column=0, columnspan=2, sticky='ew', pady=(0, 8))
+                ttk.Label(note, text='ⓘ  既有圖片搜尋區域仍使用螢幕絕對座標；\n     遊戲位置改變時，需另行量測 ROI。',
                           style='Note.TLabel').pack(anchor='w')
         self.show_page()
 
@@ -558,7 +558,7 @@ class DailyWorkWindow:
         cell = ttk.Frame(page, style='Surface.TFrame')
         name, hint = _split_label(label)
         head = ttk.Frame(cell, style='Surface.TFrame')
-        head.pack(fill='x', pady=(0, 6))
+        head.pack(fill='x', pady=(0, 3))
         ttk.Label(head, text=name, style='FieldName.TLabel').pack(side='left')
         ttk.Label(head, text=hint, style='Hint.TLabel').pack(side='right')
         return cell
@@ -567,7 +567,7 @@ class DailyWorkWindow:
         cell = self.field_cell(page, label)
         variable = tk.StringVar(self.root, value=str(value))
         self.values[name] = variable
-        widget = ttk.Entry(cell, textvariable=variable, style='Field.TEntry', font=_font(14))
+        widget = ttk.Entry(cell, textvariable=variable, style='Field.TEntry', font=_font(20), width=6)
         widget.pack(fill='x')
         self.inputs.append(widget)
         return cell
@@ -586,16 +586,16 @@ class DailyWorkWindow:
 
     def build_log(self, parent):
         card = ttk.Frame(parent, style='Console.TFrame', padding=5)
-        card.grid(row=1, column=0, sticky='nsew', pady=(16, 0))
+        card.grid(row=1, column=0, sticky='nsew', pady=(10, 0))
         card.columnconfigure(0, weight=1)
         card.rowconfigure(2, weight=1)
-        head = ttk.Frame(card, style='ConsoleSurface.TFrame', padding=(11, 5, 11, 6))
+        head = ttk.Frame(card, style='ConsoleSurface.TFrame', padding=(11, 3, 11, 4))
         head.grid(row=0, column=0, columnspan=2, sticky='ew')
         ttk.Label(head, text='›_  執行紀錄', style='ConsoleTitle.TLabel').pack(side='left')
         ttk.Label(head, text='保留最近 1000 行', style='ConsoleHint.TLabel').pack(side='right')
         tk.Frame(card, height=1, bg=C['console_line']).grid(row=1, column=0, columnspan=2, sticky='ew')
         self.log = tk.Text(card, width=1, height=6, state='disabled', wrap='word', font=LOG_FONT, bg=C['console'],
-                           fg=C['console_text'], relief='flat', bd=0, highlightthickness=0, padx=11, pady=8,
+                           fg=C['console_text'], relief='flat', bd=0, highlightthickness=0, padx=11, pady=6,
                            selectbackground='#2C3A52', selectforeground=C['text'], spacing1=1, spacing3=1,
                            insertbackground=C['text'])
         self.log.grid(row=2, column=0, sticky='nsew')

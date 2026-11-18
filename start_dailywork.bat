@@ -6,6 +6,10 @@ cd /d "%~dp0"
 set "PYTHON_CMD="
 set "PYTHONW_CMD="
 
+rem --hidden: started by start_dailywork.vbs with no visible window, so never pause.
+set "INTERACTIVE=1"
+if /I "%~1"=="--hidden" set "INTERACTIVE="
+
 rem PYTHONW_CMD runs the GUI without a console window.
 py -3 -c "import sys" >nul 2>nul
 if not errorlevel 1 (
@@ -23,7 +27,7 @@ if not defined PYTHON_CMD (
     echo Python was not found.
     echo Please install Python 3 and run this file again.
     echo.
-    pause
+    if defined INTERACTIVE pause
     exit /b 1
 )
 
@@ -34,7 +38,7 @@ if errorlevel 1 (
     echo.
     echo %PYTHON_CMD% -m pip install -r requirements.txt
     echo.
-    pause
+    if defined INTERACTIVE pause
     exit /b 1
 )
 
@@ -48,7 +52,7 @@ start "" %PYTHONW_CMD% "%~dp0DailyWork.py"
 if errorlevel 1 (
     echo Failed to start DailyWork.py with %PYTHONW_CMD%.
     echo.
-    pause
+    if defined INTERACTIVE pause
     exit /b 1
 )
 
