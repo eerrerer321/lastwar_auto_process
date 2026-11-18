@@ -4,14 +4,18 @@ setlocal
 cd /d "%~dp0"
 
 set "PYTHON_CMD="
+set "PYTHONW_CMD="
 
+rem PYTHONW_CMD runs the GUI without a console window.
 py -3 -c "import sys" >nul 2>nul
 if not errorlevel 1 (
     set "PYTHON_CMD=py -3"
+    set "PYTHONW_CMD=pyw -3"
 ) else (
     python -c "import sys" >nul 2>nul
     if not errorlevel 1 (
         set "PYTHON_CMD=python"
+        set "PYTHONW_CMD=pythonw"
     )
 )
 
@@ -39,18 +43,13 @@ if /I "%~1"=="--check" (
     exit /b 0
 )
 
-echo Starting DailyWork.py
-echo Press Ctrl+C in this window to stop.
-echo.
-
-%PYTHON_CMD% "%~dp0DailyWork.py"
-set "EXIT_CODE=%ERRORLEVEL%"
-
-if not "%EXIT_CODE%"=="0" (
-    echo.
-    echo DailyWork.py exited with error code %EXIT_CODE%.
+rem Start the GUI detached; this console window closes right away.
+start "" %PYTHONW_CMD% "%~dp0DailyWork.py"
+if errorlevel 1 (
+    echo Failed to start DailyWork.py with %PYTHONW_CMD%.
     echo.
     pause
+    exit /b 1
 )
 
-exit /b %EXIT_CODE%
+exit /b 0
