@@ -964,8 +964,10 @@ def solve_screen_detection():
                 last_base_check = current_time
                 base_val, _, _ = _match(frame, base_t)
                 if base_val >= THRESHOLD:
+                    # 只在計數從非 0 歸零時記錄；基地一直都在就不印，避免每 10 秒洗一次紀錄
+                    if base_missing_count > 0:
+                        print(f"🏠 偵測到 {base_t['name']}（匹配度: {base_val:.2f}），基地計數歸零（先前連續未出現 {base_missing_count} 次）")
                     base_missing_count = 0
-                    print(f"🏠 偵測到 {base_t['name']}（匹配度: {base_val:.2f}），基地計數歸零")
                 else:
                     base_missing_count += 1
                     print(f"⚠️ 未偵測到 {base_t['name']}（匹配度: {base_val:.2f}），連續未出現 {base_missing_count}/{BASE_MISSING_LIMIT}")
