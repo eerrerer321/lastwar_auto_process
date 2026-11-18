@@ -480,6 +480,14 @@ class DailyWorkWindow:
         header = ttk.Frame(body, style='App.TFrame')
         header.grid(row=0, column=0, columnspan=2, sticky='ew', pady=(0, 10))
         tk.Label(header, image=self.images['logo'], bg=C['bg'], bd=0).pack(side='left')
+        # 按鈕要比標題區先 pack：pack 依先後分配空間，先排的永遠拿到完整寬度，
+        # 狀態文字再長也只會壓縮標題區，不會把「儲存為預設」擠掉。
+        self.start_button = ttk.Button(header, text='▶  執行', style='Accent.TButton', command=self.start)
+        self.start_button.pack(side='right')
+        self.stop_button = ttk.Button(header, text='■  停止', style='Danger.TButton', command=self.stop, state='disabled')
+        self.stop_button.pack(side='right', padx=8)
+        self.save_button = ttk.Button(header, text='儲存為預設', style='Ghost.TButton', command=self.save)
+        self.save_button.pack(side='right')
         titles = ttk.Frame(header, style='App.TFrame')
         titles.pack(side='left', fill='x', expand=True, padx=12)
         title_row = ttk.Frame(titles, style='App.TFrame')
@@ -490,12 +498,6 @@ class DailyWorkWindow:
         self.status_pill.pack(side='left', padx=10)
         self.set_status('尚未執行', 'idle')
         ttk.Label(titles, text='勾選功能並調整參數；按執行後會自動縮小到工作列。', style='Subtitle.TLabel').pack(anchor='w')
-        self.start_button = ttk.Button(header, text='▶  執行', style='Accent.TButton', command=self.start)
-        self.start_button.pack(side='right')
-        self.stop_button = ttk.Button(header, text='■  停止', style='Danger.TButton', command=self.stop, state='disabled')
-        self.stop_button.pack(side='right', padx=8)
-        self.save_button = ttk.Button(header, text='儲存為預設', style='Ghost.TButton', command=self.save)
-        self.save_button.pack(side='right')
 
     def build_features(self, body, saved):
         card = ttk.Frame(body, style='Card.TFrame', padding=(6, 12, 6, 6))
@@ -697,7 +699,7 @@ class DailyWorkWindow:
         if self.worker is not None:
             self.engine.STOP_EVENT.set()
             self.stop_button.state(['disabled'])
-            self.set_status('停止中，等待目前操作結束…', 'warn')
+            self.set_status('停止中…', 'warn')
 
     def close(self):
         self.closing = True
@@ -732,9 +734,9 @@ class DailyWorkWindow:
             self.start_button.state(['!disabled'])
             self.stop_button.state(['disabled'])
             if self.failure:
-                self.set_status('執行失敗，請查看紀錄', 'fail')
+                self.set_status('執行失敗', 'fail')  # 隨後的錯誤對話框會說明要看下方紀錄
             else:
-                self.set_status('已停止，可修改設定後再執行', 'idle')
+                self.set_status('已停止', 'idle')
             self.root.deiconify()
             if self.failure:
                 messagebox.showerror('執行失敗', '腳本已停止，詳細錯誤請查看下方紀錄。', parent=self.root)
